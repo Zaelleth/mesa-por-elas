@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A Mesa por Elas — Controle de Vendas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="stylesheet" href="css/estilos.css">
+</head>
+<body>
+<div class="watermark"></div>
+
+<div id="loginScreen">
+  <div class="login-card">
+    <img src="assets/logo.png" alt="A Mesa por Elas">
+    <div class="eyebrow">Controle de Vendas · Acesso</div>
+    <form class="login-form" id="loginForm">
+      <div class="field">
+        <label>Usuário</label>
+        <input type="text" id="loginUser" autocomplete="username" placeholder="Seu usuário">
+      </div>
+      <div class="field">
+        <label>Senha</label>
+        <input type="password" id="loginPass" autocomplete="current-password" placeholder="Sua senha">
+      </div>
+      <button type="submit" class="submit-btn" id="loginBtn" style="width:100%;">Entrar</button>
+    </form>
+    <div class="login-msg" id="loginMsg"></div>
+  </div>
+</div>
+
+<div class="app" id="mainApp" style="display:none;">
+
+  <div class="app-header-bar">
+    <span>Acesso: <span class="who" id="whoLabel"></span></span>
+    <button id="logoutBtn">Sair</button>
+  </div>
+
+  <header class="top">
+    <img class="logo" src="assets/logo.png" alt="A Mesa por Elas">
+    <div class="eyebrow">Controle de Vendas · Evento</div>
+    <div class="sub">Quinta-feira, 13 de agosto de 2026</div>
+  </header>
+
+  <nav class="tabs">
+    <button class="active" data-tab="dashboard">Dashboard</button>
+    <button data-tab="venda">Nova Venda</button>
+  </nav>
+
+  <div id="loadingMsg" class="loading">Carregando dados…</div>
+
+  <!-- DASHBOARD -->
+  <section class="view" id="view-dashboard">
+
+    <div class="goalbar-wrap">
+      <div class="goalbar-head">
+        <span class="label">Meta do dia</span>
+        <span class="value">R$ <span id="goalTotalLabel">0</span> / R$ <input type="number" id="goalInput" value="5000"></span>
+      </div>
+      <div class="goalbar-track"><div class="goalbar-fill" id="goalFill" style="width:0%"></div></div>
+    </div>
+
+    <div class="datebar">
+      <span>Ver dados de:</span>
+      <input type="date" id="dashDate">
+      <button id="btnToday">Dia do evento</button>
+      <button id="btnAll">Tudo</button>
+      <button id="btnRefresh" title="Buscar vendas mais recentes de todos os dispositivos">⟳ Atualizar</button>
+      <button id="btnExport">⬇ Exportar CSV</button>
+      <span id="syncLabel" style="font-size:11px;color:var(--muted);margin-left:4px;"></span>
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat-card gold">
+        <div class="label">Total vendido</div>
+        <div class="amount" id="statTotal">R$ 0,00</div>
+        <div class="sub" id="statTotalCount">0 vendas</div>
+      </div>
+      <div class="stat-card teal">
+        <div class="label">Total Pix</div>
+        <div class="amount" id="statPix">R$ 0,00</div>
+        <div class="sub" id="statPixCount">0 vendas</div>
+      </div>
+      <div class="stat-card rose">
+        <div class="label">Total Cartão</div>
+        <div class="amount" id="statCartao">R$ 0,00</div>
+        <div class="sub" id="statCartaoCount">0 vendas</div>
+      </div>
+    </div>
+
+    <div class="seller-grid" id="sellerGrid"></div>
+
+    <div class="chart-grid">
+      <div class="chart-card">
+        <h3>Vendas por vendedora</h3>
+        <div class="canvas-wrap"><canvas id="sellerChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Pix × Cartão</h3>
+        <div class="canvas-wrap"><canvas id="paymentChart"></canvas></div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <h3>Vendas registradas</h3>
+      <div style="overflow-x:auto;">
+      <table class="sales-table">
+        <thead>
+          <tr><th>Cliente</th><th>Vendedora</th><th>Pagamento</th><th>Valor</th><th>Hora</th><th></th></tr>
+        </thead>
+        <tbody id="salesTableBody"></tbody>
+      </table>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- VENDA / CADASTRO -->
+  <section class="view" id="view-venda">
+    <div class="form-card">
+      <h2 id="formTitle">Registrar venda</h2>
+      <div class="hint" id="formHint">Preencha os dados da cliente e da venda</div>
+
+      <div class="field">
+        <label>Nome completo</label>
+        <input type="text" id="fName" placeholder="Nome da cliente">
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>Telefone</label>
+          <input type="text" id="fPhone" placeholder="(00) 00000-0000" inputmode="numeric">
+        </div>
+        <div class="field">
+          <label>CPF</label>
+          <input type="text" id="fCpf" placeholder="000.000.000-00" inputmode="numeric">
+        </div>
+      </div>
+      <div class="field">
+        <label>E-mail</label>
+        <input type="email" id="fEmail" placeholder="cliente@email.com">
+      </div>
+      <div class="field">
+        <label class="split-toggle-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500;color:var(--ivory);">
+          <input type="checkbox" id="fSplitPayment" style="width:16px;height:16px;accent-color:var(--gold);">
+          Dividir pagamento entre Pix e Cartão
+        </label>
+      </div>
+
+      <div id="singlePaymentBlock">
+        <div class="field">
+          <label>Valor da venda (R$)</label>
+          <input type="number" id="fAmount" placeholder="0,00" step="0.01" min="0">
+        </div>
+        <div class="field">
+          <label>Forma de pagamento</label>
+          <div class="choice-group" id="paymentGroup">
+            <div class="choice-btn" data-val="pix">Pix</div>
+            <div class="choice-btn" data-val="debito">Débito</div>
+            <div class="choice-btn" data-val="credito">Crédito</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="splitPaymentBlock" style="display:none;">
+        <div class="row2">
+          <div class="field">
+            <label>Valor no Pix (R$)</label>
+            <input type="number" id="fPixAmount" placeholder="0,00" step="0.01" min="0">
+          </div>
+          <div class="field">
+            <label>Valor no Cartão (R$)</label>
+            <input type="number" id="fCardAmount" placeholder="0,00" step="0.01" min="0">
+          </div>
+        </div>
+        <div class="field">
+          <label>Tipo do cartão (parte cartão)</label>
+          <div class="choice-group" id="cardTypeGroup">
+            <div class="choice-btn" data-val="debito">Débito</div>
+            <div class="choice-btn" data-val="credito">Crédito</div>
+          </div>
+        </div>
+        <div class="field" style="font-size:13px;color:var(--muted);">
+          Total da venda: <strong id="splitTotalLabel" style="color:var(--ivory);">R$ 0,00</strong>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Vendedora</label>
+        <div class="choice-group" id="sellerGroup"></div>
+      </div>
+
+      <button class="submit-btn" id="submitBtn">Registrar venda</button>
+      <button class="submit-btn" id="cancelEditBtn" style="display:none;margin-top:8px;background:none;border:1px solid var(--line);color:var(--muted);">Cancelar edição</button>
+      <div class="form-msg" id="formMsg"></div>
+    </div>
+
+    <div class="recent-card">
+      <h3>Últimas vendas registradas</h3>
+      <div style="overflow-x:auto;">
+      <table class="sales-table">
+        <thead><tr><th>Cliente</th><th>Vendedora</th><th>Pagamento</th><th>Valor</th></tr></thead>
+        <tbody id="recentTableBody"></tbody>
+      </table>
+      </div>
+    </div>
+  </section>
+
+  <footer class="appfoot">A Mesa por Elas — controle interno de vendas do evento</footer>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

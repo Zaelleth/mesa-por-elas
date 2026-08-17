@@ -30,6 +30,48 @@ const SHEET_AUTH = 'Auth';
 
 const VENDAS_HEADERS = ['ID', 'Nome', 'Telefone', 'CPF', 'Email', 'Valor', 'Pagamento', 'Vendedora', 'DataHora', 'ValorPix', 'ValorCartao', 'TipoCartao'];
 
+/** Rode esta função UMA VEZ pelo editor de Apps Script, antes de publicar. */
+function setupSheets() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  let vendas = ss.getSheetByName(SHEET_VENDAS);
+  if (!vendas) vendas = ss.insertSheet(SHEET_VENDAS);
+  if (vendas.getLastRow() === 0) {
+    vendas.appendRow(VENDAS_HEADERS);
+    vendas.setFrozenRows(1);
+  }
+
+  let config = ss.getSheetByName(SHEET_CONFIG);
+  if (!config) config = ss.insertSheet(SHEET_CONFIG);
+  if (config.getLastRow() === 0) {
+    config.appendRow(['Chave', 'Valor']);
+    config.appendRow(['goal', 5000]);
+    config.setFrozenRows(1);
+  }
+
+  let auth = ss.getSheetByName(SHEET_AUTH);
+  if (!auth) auth = ss.insertSheet(SHEET_AUTH);
+  if (auth.getLastRow() === 0) {
+    auth.appendRow(['Usuario', 'Senha', 'Papel']);
+    auth.appendRow(['Artur', '1234', 'admin']);
+    auth.appendRow(['Gabriela', 'gabi123', 'vendedora']);
+    auth.appendRow(['Larissa', 'lari123', 'vendedora']);
+    auth.setFrozenRows(1);
+  }
+
+  // Remove a aba padrão "Sheet1"/"Página1" se estiver vazia
+  const def = ss.getSheetByName('Sheet1') || ss.getSheetByName('Página1');
+  if (def && def.getLastRow() === 0 && ss.getSheets().length > 1) {
+    ss.deleteSheet(def);
+  }
+
+  migrateAddSplitPaymentColumns();
+  migrateAuthToUsernameSchema();
+
+  SpreadsheetApp.flush();
+  Logger.log('Planilhas configuradas com sucesso. Pode implantar como Web App.');
+}
+
 
 // -----------------------------------------------------------------
 // Ponto de entrada da API
@@ -43,6 +85,7 @@ function doGet(e) {
     const action = e.parameter.action;
     if (action === 'getSales') return jsonOut({ ok: true, sales: readSales() });
     if (action === 'getConfig') return jsonOut({ ok: true, goal: readConfig().goal });
+    if (action === 'getSellers') return jsonOut({ ok: true, sellers: getSellers() });
     return jsonOut({ ok: false, error: 'Ação GET desconhecida.' });
   } catch (err) {
     return jsonOut({ ok: false, error: String(err) });
@@ -85,7 +128,7 @@ function doPost(e) {
       if (!isValidBootstrapToken(body.token)) {
         return jsonOut({ ok: false, error: 'Acesso não autorizado.' });
       }
-      return jsonOut(login(body.role, body.password));
+      return jsonOut(login(body.username, body.password));
     }
 
     // Todas as ações abaixo exigem uma sessão válida (obtida via login).
@@ -250,18 +293,31 @@ function saveConfig(goal) {
 // Autenticação
 // -----------------------------------------------------------------
 
-function login(role, password) {
+function login(username, password) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_AUTH);
   const lastRow = sheet.getLastRow();
-  const values = sheet.getRange(2, 1, Math.max(lastRow - 1, 0), 2).getValues();
+  const values = sheet.getRange(2, 1, Math.max(lastRow - 1, 0), 3).getValues();
   for (let i = 0; i < values.length; i++) {
-    if (String(values[i][0]) === String(role)) {
+    if (String(values[i][0]).toLowerCase() === String(username).toLowerCase()) {
       const ok = String(values[i][1]) === String(password);
-      if (!ok) return { ok: false, error: 'Senha incorreta.' };
+      if (!ok) return { ok: false, error: 'Usuário ou senha incorretos.' };
+      const actualUsername = String(values[i][0]);
+      const role = String(values[i][2] || 'vendedora');
       const sessionToken = Utilities.getUuid();
-      CacheService.getScriptCache().put('session_' + sessionToken, role, SESSION_TTL_SECONDS);
-      return { ok: true, role: role, sessionToken: sessionToken };
+      CacheService.getScriptCache().put('session_' + sessionToken, actualUsername, SESSION_TTL_SECONDS);
+      return { ok: true, username: actualUsername, role: role, sessionToken: sessionToken };
     }
   }
-  return { ok: false, error: 'Papel não encontrado.' };
+  return { ok: false, error: 'Usuário ou senha incorretos.' };
+}
+
+/** Lista os nomes de usuário cadastrados com o papel "vendedora". */
+function getSellers() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_AUTH);
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  const values = sheet.getRange(2, 1, lastRow - 1, 3).getValues();
+  return values
+    .filter(function (r) { return r[0] && String(r[2]).toLowerCase() === 'vendedora'; })
+    .map(function (r) { return String(r[0]); });
 }

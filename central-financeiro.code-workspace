@@ -1,0 +1,11 @@
+{
+  "folders": [
+    { "name": "Mesa por Elas", "path": "apps/mesa-por-elas" },
+    { "name": "EMG (privado)", "path": "apps/emg" },
+    { "name": "Shared", "path": "packages/shared-ui" },
+    { "name": "Tools", "path": "tools" }
+  ],
+  "settings": {
+    "liveServer.settings.multiRootWorkspaceName": "Mesa por Elas"
+  }
+}
