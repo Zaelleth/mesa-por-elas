@@ -1,0 +1,4 @@
+﻿apps/mesa-por-elas/backend/.clasp.json
+apps/emg/backend/.clasp.json
+node_modules/
+.DS_Store
