@@ -2,3 +2,5 @@
 apps/emg/backend/.clasp.json
 node_modules/
 .DS_Store
+
+apps/emg/
