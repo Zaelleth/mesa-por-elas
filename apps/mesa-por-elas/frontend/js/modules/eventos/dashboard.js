@@ -3,8 +3,7 @@
 // (variável global, não precisa de import).
 
 import { state } from '../../state.js';
-import { EVENT_DATE } from '../../config.js';
-import { fmtBRL, dateOfSale, csvEscape, pixPortion, cardPortion, paymentLabel, paymentPillClass } from '../../utils.js';
+import { fmtBRL, dateOfSale, todayStr, csvEscape, pixPortion, cardPortion, paymentLabel, paymentPillClass } from '../../utils.js';
 import { deleteSaleAPI, refreshSales, saveGoalConfig } from './sales-data.js';
 import { startEdit } from './sales-form.js';
 
@@ -192,20 +191,33 @@ function exportCSV(){
   URL.revokeObjectURL(url);
 }
 
+/** Atualiza a aparência "ligado/desligado" dos botões Hoje e Tudo, conforme o filtro ativo. */
+function updateDateToggleButtons(){
+  const isToday = state.currentFilterDate === todayStr();
+  const isAll = state.currentFilterDate === null;
+  document.getElementById('btnToday').classList.toggle('toggled', isToday);
+  document.getElementById('btnAll').classList.toggle('toggled', isAll);
+}
+
 /** Liga todos os listeners da tela de dashboard (filtros, meta, exportar, atualizar). */
 export function initDashboardListeners(){
   document.getElementById('dashDate').value = state.currentFilterDate;
+  updateDateToggleButtons();
+
   document.getElementById('dashDate').addEventListener('change', e=>{
     state.currentFilterDate = e.target.value;
+    updateDateToggleButtons();
     renderDashboard();
   });
   document.getElementById('btnToday').addEventListener('click', ()=>{
-    state.currentFilterDate = EVENT_DATE;
+    state.currentFilterDate = todayStr();
     document.getElementById('dashDate').value = state.currentFilterDate;
+    updateDateToggleButtons();
     renderDashboard();
   });
   document.getElementById('btnAll').addEventListener('click', ()=>{
     state.currentFilterDate = null;
+    updateDateToggleButtons();
     renderDashboard();
   });
   document.getElementById('goalInput').addEventListener('change', e=>{

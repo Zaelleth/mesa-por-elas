@@ -3,7 +3,7 @@
 // qualquer ambiguidade sobre live-binding entre arquivos — todo módulo que
 // importar `state` enxerga e altera exatamente o mesmo objeto.
 
-import { EVENT_DATE } from './config.js';
+import { todayStr } from './utils.js';
 
 export const state = {
   // Sessão / autenticação
@@ -15,8 +15,9 @@ export const state = {
   // Dados do módulo Eventos
   sales: [],
   goalValue: 5000,
-  currentFilterDate: EVENT_DATE,
+  currentFilterDate: todayStr(), // por padrão, o dashboard abre mostrando o dia atual
   autoRefreshTimer: null,
+  vendasSort: { field: 'data', dir: 'desc' }, // tela "Vendas": campo e direção de ordenação
 
   // Gráficos (guardamos a instância para poder destruir antes de recriar)
   sellerChart: null,

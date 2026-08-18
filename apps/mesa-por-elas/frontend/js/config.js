@@ -8,5 +8,4 @@ export const API_URL = 'https://script.google.com/macros/s/AKfycbzHgv-Qm0eN5Cw66
 // passa a usar um token de sessão temporário gerado pelo servidor.
 export const BOOTSTRAP_TOKEN = 'ricardinho-guilerme-bagui-complica';
 
-export const EVENT_DATE = '2026-08-13';
 export const AUTO_REFRESH_MS = 15000; // intervalo de sincronização entre os dispositivos

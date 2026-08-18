@@ -73,7 +73,7 @@
     position:relative;
   }
   nav.tabs button .tab-icon{font-size:14px; width:16px; text-align:center; opacity:.8;}
-  nav.tabs button:hover{color:var(--ivory); background:rgba(255,255,255,.03);}
+  nav.tabs button:hover{color:var(--ivory); background:rgba(203,168,105,.07);}
   nav.tabs button.active{color:var(--ivory); background:rgba(203,168,105,.1);}
   nav.tabs button.active::before{
     content:''; position:absolute; left:0; top:10%; bottom:10%; width:3px;
@@ -91,7 +91,7 @@
     width:100%; background:none; border:1px solid var(--line); color:var(--muted);
     padding:9px 12px; border-radius:8px; cursor:pointer; font-size:12px; transition:.15s;
   }
-  .sidebar-footer button:hover{border-color:var(--gold-soft); color:var(--gold);}
+  .sidebar-footer button:hover{border-color:var(--gold-soft); color:var(--gold); background:rgba(203,168,105,.08);}
 
   .main-content{
     flex:1;
@@ -104,10 +104,54 @@
   .content-topbar .page-title{
     font-family:'Playfair Display',serif; font-weight:500; font-size:26px; color:var(--ivory);
   }
-  .content-topbar .sub{color:var(--muted); font-size:13px; margin-top:4px;}
+  .content-topbar .sub{color:var(--muted);font-size:13px;margin-top:4px;}
 
   .view{display:none;animation:fade .35s ease;}
   .view.active{display:block;}
+
+  /* ---- Tela Vendas: cabeçalho + ordenação + listagem ---- */
+  .topbar-row{
+    display:flex; justify-content:space-between; align-items:flex-start;
+    gap:16px; flex-wrap:wrap; margin-bottom:24px;
+  }
+  .topbar-row .content-topbar{margin-bottom:0;}
+
+  .sort-wrap{position:relative;}
+  .sort-trigger{
+    background:var(--bg-card); border:1px solid var(--line); color:var(--ivory);
+    padding:9px 14px; border-radius:9px; cursor:pointer; font-size:13px;
+    font-family:'Inter',sans-serif; display:flex; align-items:center; gap:6px;
+    transition:.15s;
+  }
+  .sort-trigger:hover{border-color:var(--gold-soft); background:var(--bg-elevated);}
+  .sort-trigger .chevron{color:var(--muted); font-size:11px;}
+  .sort-trigger #sortLabel{color:var(--gold); font-weight:600;}
+
+  .sort-menu{
+    display:none; position:absolute; top:calc(100% + 8px); right:0; z-index:10;
+    background:var(--bg-card); border:1px solid var(--line); border-radius:12px;
+    padding:6px; min-width:220px; box-shadow:0 12px 32px rgba(0,0,0,.4);
+  }
+  .sort-menu.open{display:block;}
+  .sort-option{
+    width:100%; display:flex; justify-content:space-between; align-items:center;
+    background:none; border:none; color:var(--muted); padding:9px 12px; border-radius:8px;
+    cursor:pointer; font-size:13px; font-family:'Inter',sans-serif; text-align:left;
+    transition:.15s;
+  }
+  .sort-option:hover{background:rgba(203,168,105,.07); color:var(--ivory);}
+  .sort-option.active{color:var(--gold); background:rgba(203,168,105,.08);}
+  .sort-option .dir-arrow{font-size:12px; color:var(--gold);}
+
+  .sales-list{display:flex; flex-direction:column; gap:1px; background:var(--line); border-radius:12px; overflow:hidden; border:1px solid var(--line);}
+  .sale-row{
+    display:flex; justify-content:space-between; align-items:center; gap:16px;
+    background:var(--bg-card); padding:14px 18px;
+  }
+  .sale-row-name{color:var(--ivory); font-family:'Playfair Display',serif; font-size:15px;}
+  .sale-row-meta{color:var(--muted); font-size:12px; margin-top:4px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;}
+  .sale-row-amount{color:var(--gold); font-weight:600; font-size:15px; white-space:nowrap;}
+  .sale-row-actions{display:flex; align-items:center; gap:10px; flex-shrink:0;}
   @keyframes fade{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
 
   .goalbar-wrap{
@@ -131,11 +175,17 @@
   }
   .datebar button{
     background:none;border:1px solid var(--line);color:var(--muted);padding:7px 12px;border-radius:8px;
-    cursor:pointer;font-size:12px;
+    cursor:pointer;font-size:12px;transition:.15s;
   }
-  .datebar button:hover{border-color:var(--gold-soft);color:var(--gold);}
+  .datebar button:hover{border-color:var(--gold-soft);color:var(--gold);background:rgba(203,168,105,.08);}
   .datebar button#btnExport{border-color:var(--gold-soft);color:var(--gold);}
-  .datebar button#btnExport:hover{background:rgba(203,168,105,.1);}
+
+  /* Estado "ligado" persistente (como um interruptor) para Hoje/Tudo —
+     diferente do hover, essa cor fica mesmo sem o mouse em cima. */
+  .datebar button.toggled{
+    background:rgba(203,168,105,.16);border-color:var(--gold);color:var(--gold);font-weight:600;
+  }
+  .datebar button.toggled:hover{background:rgba(203,168,105,.24);}
 
   .stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px;}
   .stat-card{
@@ -179,10 +229,10 @@
   .pill.pix{background:rgba(111,168,154,.15);color:var(--teal);}
   .pill.cartao{background:rgba(203,168,105,.15);color:var(--gold);}
   .pill.misto{background:linear-gradient(90deg, rgba(111,168,154,.18), rgba(203,168,105,.18));color:var(--rose);}
-  .del-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;}
-  .del-btn:hover{color:var(--danger);}
-  .edit-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;}
-  .edit-btn:hover{color:var(--gold);}
+  .del-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;padding:5px 8px;border-radius:7px;transition:.15s;}
+  .del-btn:hover{color:var(--danger);background:rgba(176,106,106,.12);}
+  .edit-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:5px 8px;border-radius:7px;transition:.15s;}
+  .edit-btn:hover{color:var(--gold);background:rgba(203,168,105,.12);}
   .empty-row{color:var(--muted);text-align:center;padding:22px 0;font-size:13px;}
 
   /* Sale form */
@@ -204,14 +254,24 @@
     flex:1;background:var(--bg-elevated);border:1px solid var(--line);color:var(--muted);
     padding:11px 8px;border-radius:9px;cursor:pointer;font-size:13px;text-align:center;transition:.15s;
   }
+  .choice-btn:hover:not(.selected){background:#1d1d24;border-color:var(--gold-soft);color:var(--ivory);}
   .choice-btn.selected{border-color:var(--gold);color:var(--gold);background:rgba(203,168,105,.08);}
   .submit-btn{
     width:100%;padding:13px;border-radius:9px;border:none;margin-top:6px;
     background:linear-gradient(90deg,var(--gold-soft),var(--gold));
     color:#191510;font-family:'Playfair Display',serif;font-size:15px;font-weight:600;cursor:pointer;
-    letter-spacing:.02em;
+    letter-spacing:.02em;transition:filter .15s;
   }
+  .submit-btn:hover:not(:disabled){filter:brightness(0.9);}
   .submit-btn:disabled{opacity:.5;cursor:not-allowed;}
+
+  /* Botão utilitário "apenas borda", reaproveitável em qualquer tela */
+  .btn-outline{
+    width:100%;padding:11px;border-radius:9px;cursor:pointer;
+    background:none;border:1px solid var(--line);color:var(--muted);
+    font-family:'Inter',sans-serif;font-size:13px;transition:.15s;
+  }
+  .btn-outline:hover{border-color:var(--gold-soft);color:var(--gold);background:rgba(203,168,105,.08);}
   .form-msg{text-align:center;font-size:12px;margin-top:10px;min-height:16px;}
   .form-msg.ok{color:var(--teal);}
   .form-msg.err{color:var(--danger);}
