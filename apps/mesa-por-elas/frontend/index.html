@@ -31,25 +31,40 @@
   </div>
 </div>
 
-<div class="app" id="mainApp" style="display:none;">
+<div class="app-shell" id="mainApp" style="display:none;">
 
-  <div class="app-header-bar">
-    <span>Acesso: <span class="who" id="whoLabel"></span></span>
-    <button id="logoutBtn">Sair</button>
-  </div>
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <img class="logo" src="assets/logo.png" alt="A Mesa por Elas">
+      <div class="eyebrow">Controle de Vendas</div>
+    </div>
 
-  <header class="top">
-    <img class="logo" src="assets/logo.png" alt="A Mesa por Elas">
-    <div class="eyebrow">Controle de Vendas · Evento</div>
-    <div class="sub">Quinta-feira, 13 de agosto de 2026</div>
-  </header>
+    <nav class="tabs">
+      <button class="active" data-tab="dashboard" data-label="Dashboard">
+        <span class="tab-icon">▤</span> Dashboard
+      </button>
+      <button data-tab="venda" data-label="Nova Venda">
+        <span class="tab-icon">＋</span> Nova Venda
+      </button>
+    </nav>
 
-  <nav class="tabs">
-    <button class="active" data-tab="dashboard">Dashboard</button>
-    <button data-tab="venda">Nova Venda</button>
-  </nav>
+    <div class="sidebar-footer">
+      <div class="who-block">
+        <span class="who-label">Conectado como</span>
+        <span class="who" id="whoLabel"></span>
+      </div>
+      <button id="logoutBtn">Sair</button>
+    </div>
+  </aside>
 
-  <div id="loadingMsg" class="loading">Carregando dados…</div>
+  <main class="main-content">
+
+    <div class="content-topbar">
+      <div class="page-title" id="pageTitle">Dashboard</div>
+      <div class="sub">Quinta-feira, 13 de agosto de 2026</div>
+    </div>
+
+    <div id="loadingMsg" class="loading">Carregando dados…</div>
 
   <!-- DASHBOARD -->
   <section class="view" id="view-dashboard">
@@ -208,6 +223,7 @@
   </section>
 
   <footer class="appfoot">A Mesa por Elas — controle interno de vendas do evento</footer>
+  </main>
 </div>
 
 <script type="module" src="js/main.js"></script>

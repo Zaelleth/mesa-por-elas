@@ -65,6 +65,7 @@ document.querySelectorAll('nav.tabs button').forEach(btn=>{
     btn.classList.add('active');
     document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
     document.getElementById('view-'+btn.dataset.tab).classList.add('active');
+    document.getElementById('pageTitle').textContent = btn.dataset.label || btn.textContent.trim();
     if(btn.dataset.tab==='dashboard') renderDashboard();
   });
 });

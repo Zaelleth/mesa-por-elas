@@ -45,11 +45,13 @@ export function applyRolePermissions(){
   if(isAdmin){
     document.querySelector('nav.tabs button[data-tab="dashboard"]').classList.add('active');
     document.getElementById('view-dashboard').classList.add('active');
+    document.getElementById('pageTitle').textContent = 'Dashboard';
     document.getElementById('sellerGroup').style.pointerEvents = '';
     document.getElementById('sellerGroup').style.opacity = '';
   } else {
     document.querySelector('nav.tabs button[data-tab="venda"]').classList.add('active');
     document.getElementById('view-venda').classList.add('active');
+    document.getElementById('pageTitle').textContent = 'Nova Venda';
     // Trava a escolha de vendedora na própria pessoa logada
     state.selectedSeller = state.currentUser;
     selectChoice('sellerGroup', state.currentUser);
