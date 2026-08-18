@@ -30,48 +30,6 @@ const SHEET_AUTH = 'Auth';
 
 const VENDAS_HEADERS = ['ID', 'Nome', 'Telefone', 'CPF', 'Email', 'Valor', 'Pagamento', 'Vendedora', 'DataHora', 'ValorPix', 'ValorCartao', 'TipoCartao'];
 
-/** Rode esta função UMA VEZ pelo editor de Apps Script, antes de publicar. */
-function setupSheets() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-
-  let vendas = ss.getSheetByName(SHEET_VENDAS);
-  if (!vendas) vendas = ss.insertSheet(SHEET_VENDAS);
-  if (vendas.getLastRow() === 0) {
-    vendas.appendRow(VENDAS_HEADERS);
-    vendas.setFrozenRows(1);
-  }
-
-  let config = ss.getSheetByName(SHEET_CONFIG);
-  if (!config) config = ss.insertSheet(SHEET_CONFIG);
-  if (config.getLastRow() === 0) {
-    config.appendRow(['Chave', 'Valor']);
-    config.appendRow(['goal', 5000]);
-    config.setFrozenRows(1);
-  }
-
-  let auth = ss.getSheetByName(SHEET_AUTH);
-  if (!auth) auth = ss.insertSheet(SHEET_AUTH);
-  if (auth.getLastRow() === 0) {
-    auth.appendRow(['Usuario', 'Senha', 'Papel']);
-    auth.appendRow(['Artur', '1234', 'admin']);
-    auth.appendRow(['Gabriela', 'gabi123', 'vendedora']);
-    auth.appendRow(['Larissa', 'lari123', 'vendedora']);
-    auth.setFrozenRows(1);
-  }
-
-  // Remove a aba padrão "Sheet1"/"Página1" se estiver vazia
-  const def = ss.getSheetByName('Sheet1') || ss.getSheetByName('Página1');
-  if (def && def.getLastRow() === 0 && ss.getSheets().length > 1) {
-    ss.deleteSheet(def);
-  }
-
-  migrateAddSplitPaymentColumns();
-  migrateAuthToUsernameSchema();
-
-  SpreadsheetApp.flush();
-  Logger.log('Planilhas configuradas com sucesso. Pode implantar como Web App.');
-}
-
 
 // -----------------------------------------------------------------
 // Ponto de entrada da API
