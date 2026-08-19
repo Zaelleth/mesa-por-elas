@@ -233,10 +233,14 @@
   .pill.admin{background:rgba(203,168,105,.15);color:var(--gold);}
   .pill.gestor{background:rgba(185,143,160,.18);color:var(--rose);}
   .pill.vendedora{background:rgba(111,168,154,.15);color:var(--teal);}
+  .pill.inactive{background:rgba(148,142,131,.15);color:var(--muted);}
+  .pill.club{background:linear-gradient(90deg, rgba(203,168,105,.22), rgba(185,143,160,.18));color:var(--gold);font-weight:600;}
   .del-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;padding:5px 8px;border-radius:7px;transition:.15s;}
   .del-btn:hover{color:var(--danger);background:rgba(176,106,106,.12);}
   .edit-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:5px 8px;border-radius:7px;transition:.15s;}
   .edit-btn:hover{color:var(--gold);background:rgba(203,168,105,.12);}
+  .toggle-active-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:5px 8px;border-radius:7px;transition:.15s;display:inline-flex;align-items:center;justify-content:center;}
+  .toggle-active-btn:hover{color:var(--teal);background:rgba(111,168,154,.12);}
   .empty-row{color:var(--muted);text-align:center;padding:22px 0;font-size:13px;}
 
   /* Sale form */
@@ -245,6 +249,21 @@
   }
   .form-card h2{font-family:'Playfair Display',serif;font-weight:500;font-size:19px;margin:0 0 4px;text-align:center;}
   .form-card .hint{text-align:center;color:var(--muted);font-size:12px;margin-bottom:20px;}
+
+  /* ---- Modal (confirmação e painéis de conteúdo livre) ---- */
+  .modal-overlay{
+    position:fixed;inset:0;background:rgba(10,10,13,.72);z-index:100;
+    display:flex;align-items:center;justify-content:center;padding:20px;
+  }
+  .modal-card{
+    background:var(--bg-card);border:1px solid var(--line);border-radius:16px;
+    padding:26px;max-width:440px;width:100%;max-height:85vh;overflow-y:auto;
+    animation:fade .2s ease;
+  }
+  .modal-card-wide{max-width:640px;}
+  .modal-card h3{font-family:'Playfair Display',serif;font-weight:500;font-size:18px;margin:0 0 12px;color:var(--ivory);}
+  .modal-message{color:var(--muted);font-size:14px;line-height:1.5;margin:0 0 20px;}
+  .modal-actions{display:flex;justify-content:flex-end;gap:10px;}
   .field{margin-bottom:14px;}
   .field label{display:block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
   .field input, .field select{
@@ -279,6 +298,8 @@
     font-family:'Inter',sans-serif;font-size:13px;transition:.15s;
   }
   .btn-outline:hover{border-color:var(--gold-soft);color:var(--gold);background:rgba(203,168,105,.08);}
+  .btn-add-large{padding:13px 22px;font-size:15px;font-family:'Playfair Display',serif;border-color:var(--gold-soft);color:var(--gold);}
+  .btn-add-large:hover{background:rgba(203,168,105,.12);}
   .form-msg{text-align:center;font-size:12px;margin-top:10px;min-height:16px;}
   .form-msg.ok{color:var(--teal);}
   .form-msg.err{color:var(--danger);}

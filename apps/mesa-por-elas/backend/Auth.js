@@ -23,19 +23,29 @@ const SHEET_USERS = 'users';
  * O valor guardado é um JSON com {username, name, role} — assim, ações que
  * exigem checar o papel (ex: telas de administrador) não precisam reabrir a
  * planilha a cada clique, só ler o cache.
+ *
+ * A cada chamada, também confere se a conta continua ativa (isUserLoginActive,
+ * em Users.js). Isso é o que garante que inativar alguém derruba o acesso
+ * dela imediatamente — mesmo que a sessão dela ainda não tivesse expirado —
+ * sem precisar rastrear/revogar tokens de sessão individualmente.
  */
 function getSessionData(token) {
   if (typeof token !== 'string' || !token) return null;
   const cache = CacheService.getScriptCache();
   const raw = cache.get('session_' + token);
   if (!raw) return null;
+  let data;
   try {
-    const data = JSON.parse(raw);
-    cache.put('session_' + token, raw, SESSION_TTL_SECONDS); // renova a validade a cada uso
-    return data;
+    data = JSON.parse(raw);
   } catch (e) {
     return null;
   }
+  if (!isUserLoginActive(data.username)) {
+    cache.remove('session_' + token);
+    return null;
+  }
+  cache.put('session_' + token, raw, SESSION_TTL_SECONDS); // renova a validade a cada uso
+  return data;
 }
 
 function isValidSession(token) {
@@ -57,10 +67,13 @@ function login(username, password) {
   const lastRow = sheet.getLastRow();
   const values = sheet.getRange(2, 1, Math.max(lastRow - 1, 0), USERS_HEADERS.length).getValues();
   for (let i = 0; i < values.length; i++) {
-    // Colunas: ID(0) Nome(1) Email(2) Login(3) Senha(4) Função(5)
+    // Colunas: user_id(0) name(1) email(2) login(3) password(4) role(5) active(6)
     if (String(values[i][3]).toLowerCase() === String(username).toLowerCase()) {
       const ok = String(values[i][4]) === String(password);
       if (!ok) return { ok: false, error: 'Usuário ou senha incorretos.' };
+      if (!normalizeActive(values[i][6])) {
+        return { ok: false, error: 'Esta conta está inativa. Fale com um administrador.' };
+      }
       const name = String(values[i][1]);
       const loginValue = String(values[i][3]);
       const role = String(values[i][5] || 'vendedora');
@@ -73,13 +86,13 @@ function login(username, password) {
   return { ok: false, error: 'Usuário ou senha incorretos.' };
 }
 
-/** Lista os logins cadastrados com a função "vendedora" (usado no formulário de venda). */
+/** Lista os logins cadastrados com a função "vendedora" e conta ATIVA (usado no formulário de venda). */
 function getSellers() {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_USERS);
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return [];
   const values = sheet.getRange(2, 1, lastRow - 1, USERS_HEADERS.length).getValues();
   return values
-    .filter(function (r) { return r[0] && String(r[5]).toLowerCase() === 'vendedora'; })
-    .map(function (r) { return String(r[3]); }); // Login
+    .filter(function (r) { return r[0] && String(r[5]).toLowerCase() === 'vendedora' && normalizeActive(r[6]); })
+    .map(function (r) { return String(r[3]); }); // login
 }

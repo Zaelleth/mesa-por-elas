@@ -2,12 +2,13 @@
  * BACKEND — "A Mesa por Elas" — Controle de Vendas
  * -------------------------------------------------
  * Este projeto está dividido em arquivos por responsabilidade:
- *   Main.js    → roteamento HTTP (este arquivo)
- *   Auth.js    → login, sessões, controle de acesso
- *   Users.js   → CRUD do cadastro de usuários (aba "Users")
- *   Sales.js   → CRUD de vendas (aba "Vendas")
- *   Config.js  → meta de vendas (aba "Config")
- *   Setup.js   → criação inicial e migrações de planilha
+ *   Main.js      → roteamento HTTP (este arquivo)
+ *   Auth.js      → login, sessões, controle de acesso
+ *   Users.js     → CRUD do cadastro de usuários (aba "users")
+ *   Customers.js → CRUD de clientes (aba "customers")
+ *   Sales.js     → CRUD de vendas (aba "sales")
+ *   Settings.js  → configurações (aba "settings")
+ *   Setup.js     → criação inicial e migrações de planilha
  *
  * No Apps Script, todos os arquivos compartilham o mesmo escopo global —
  * ou seja, uma função definida em Sales.js pode ser chamada normalmente
@@ -30,6 +31,9 @@ function doGet(e) {
     if (action === 'getSales') return jsonOut({ ok: true, sales: readSales() });
     if (action === 'getConfig') return jsonOut({ ok: true, goal: readConfig().goal });
     if (action === 'getSellers') return jsonOut({ ok: true, sellers: getSellers() });
+    // Tela de Clientes é visível para todo mundo (admin, gestor e
+    // vendedora) — sem gate extra além de ter uma sessão válida.
+    if (action === 'getCustomers') return jsonOut({ ok: true, customers: readCustomers() });
     if (action === 'getUsers') {
       if (!isAdminOrGestorSession(e.parameter.token)) {
         return jsonOut({ ok: false, error: 'Acesso restrito a administradores e gestores.' });
@@ -77,6 +81,11 @@ function doPost(e) {
     if (action === 'deleteSale') return jsonOut(deleteSale(body.id));
     if (action === 'saveConfig') return jsonOut(saveConfig(body.goal));
 
+    // Clientes: qualquer pessoa logada pode cadastrar/editar — não existe
+    // exclusão de cliente pelo app (decisão de produto), só pela planilha.
+    if (action === 'addCustomer') return jsonOut(addCustomer(body.customer));
+    if (action === 'updateCustomer') return jsonOut(updateCustomer(body.id, body.customer));
+
     if (action === 'addUser') {
       const session = getSessionData(body.token);
       if (!session || (session.role !== 'admin' && session.role !== 'gestor')) {
@@ -97,6 +106,13 @@ function doPost(e) {
         return jsonOut({ ok: false, error: 'Acesso restrito a administradores e gestores.' });
       }
       return jsonOut(deleteUser(body.id, session.role));
+    }
+    if (action === 'setUserActive') {
+      const session = getSessionData(body.token);
+      if (!session || (session.role !== 'admin' && session.role !== 'gestor')) {
+        return jsonOut({ ok: false, error: 'Acesso restrito a administradores e gestores.' });
+      }
+      return jsonOut(setUserActive(body.id, body.active, session.role, session.username));
     }
 
     return jsonOut({ ok: false, error: 'Ação POST desconhecida.' });

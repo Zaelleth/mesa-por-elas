@@ -9,6 +9,7 @@ import { renderDashboard, renderRecent, initDashboardListeners } from './modules
 import { renderVendasList, initVendasListeners } from './modules/eventos/vendas-list.js';
 import { initSalesFormListeners, resetForm } from './modules/eventos/sales-form.js';
 import { loadAndRenderUsers, initUsersListeners, resetUserForm } from './modules/users.js';
+import { fetchCustomers, loadAndRenderCustomers, initCustomersListeners, resetCustomerForm } from './modules/customers.js';
 // import { initClubDashboard } from './modules/club/dashboard.js';
 // import { initClubSubscribers } from './modules/club/subscribers.js';
 
@@ -32,6 +33,7 @@ document.getElementById('loginForm').addEventListener('submit', async e=>{
       document.getElementById('mainApp').style.display = '';
       document.getElementById('loadingMsg').style.display = '';
       await loadData();
+      await fetchCustomers();
       document.getElementById('loadingMsg').style.display = 'none';
       renderDashboard();
       renderRecent();
@@ -80,6 +82,9 @@ document.querySelectorAll('nav.tabs button').forEach(btn=>{
     if(leavingTab === 'usuarios' && btn.dataset.tab !== 'usuarios'){
       resetUserForm();
     }
+    if(leavingTab === 'clientes' && btn.dataset.tab !== 'clientes'){
+      resetCustomerForm();
+    }
 
     document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
@@ -89,6 +94,7 @@ document.querySelectorAll('nav.tabs button').forEach(btn=>{
     if(btn.dataset.tab==='dashboard') renderDashboard();
     if(btn.dataset.tab==='vendas') renderVendasList();
     if(btn.dataset.tab==='usuarios') loadAndRenderUsers();
+    if(btn.dataset.tab==='clientes') loadAndRenderCustomers();
     if(btn.dataset.tab==='venda' && isElevatedRole(state.currentRole)){
       // Busca a lista de vendedoras fresca a cada entrada nessa aba — se um
       // admin/gestor acabou de cadastrar ou remover alguém em "Usuários",
@@ -104,6 +110,7 @@ initDashboardListeners();
 initVendasListeners();
 initSalesFormListeners();
 initUsersListeners();
+initCustomersListeners();
 
 // Subtítulo do topo mostra sempre a data de hoje (formatada por extenso).
 const todayLabel = new Date().toLocaleDateString('pt-BR', {

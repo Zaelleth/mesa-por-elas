@@ -32,5 +32,11 @@ export const state = {
   // Tela de Usuários (admin)
   users: [],
   editingUserId: null,
-  selectedUserRole: null
+  selectedUserRole: null,
+
+  // Tela de Clientes
+  customers: [],
+  editingCustomerId: null,
+  customersSort: { field: 'name', dir: 'asc' },
+  customersClubOnly: false
 };

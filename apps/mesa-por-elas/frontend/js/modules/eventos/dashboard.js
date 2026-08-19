@@ -25,7 +25,7 @@ export function renderRecent(){
   }
   list.forEach(s=>{
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${s.name}</td><td>${s.seller}</td><td><span class="pill ${paymentPillClass(s)}">${paymentLabel(s)}</span></td><td>R$ ${fmtBRL(s.amount)}</td>`;
+    tr.innerHTML = `<td>${s.name}</td><td>${s.sellerName}</td><td><span class="pill ${paymentPillClass(s)}">${paymentLabel(s)}</span></td><td>R$ ${fmtBRL(s.amount)}</td>`;
     tbody.appendChild(tr);
   });
 }
@@ -52,27 +52,35 @@ export function renderDashboard(){
 
   // vendedoras — calculadas a partir de quem realmente tem venda no período
   // filtrado (não uma lista fixa), assim reflete qualquer vendedora nova ou
-  // já removida sem precisar tocar em código.
+  // já removida sem precisar tocar em código. Agrupamos por login (estável,
+  // nunca muda) mas exibimos o nome (sellerName, já resolvido via seller_id).
   const sellerColorPalette = ['#cba869','#b98fa0','#6fa89a','#8a7550','#a8834f','#2c8f7a','#c98f6a','#7a8fa8'];
-  const sellerNames = [...new Set(list.map(s=>s.seller))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  const sellerLogins = [...new Set(list.map(s=>s.seller))].sort((a,b)=>{
+    const nameA = list.find(s=>s.seller===a).sellerName;
+    const nameB = list.find(s=>s.seller===b).sellerName;
+    return nameA.localeCompare(nameB,'pt-BR');
+  });
   const colors = {};
-  sellerNames.forEach((name,i)=>{ colors[name] = sellerColorPalette[i % sellerColorPalette.length]; });
+  sellerLogins.forEach((login,i)=>{ colors[login] = sellerColorPalette[i % sellerColorPalette.length]; });
 
-  const sellers = sellerNames;
+  const sellers = sellerLogins;
   const sellerGrid = document.getElementById('sellerGrid');
   sellerGrid.innerHTML = '';
   const sellerTotals = {};
+  const sellerDisplayNames = {};
   if(sellers.length === 0){
     sellerGrid.innerHTML = '<div class="empty-row">Nenhuma venda registrada nesse período</div>';
   }
-  sellers.forEach(name=>{
-    const sList = list.filter(s=>s.seller===name);
+  sellers.forEach(login=>{
+    const sList = list.filter(s=>s.seller===login);
     const sTotal = sList.reduce((a,s)=>a+s.amount,0);
-    sellerTotals[name] = sTotal;
+    const displayName = sList[0].sellerName;
+    sellerTotals[login] = sTotal;
+    sellerDisplayNames[login] = displayName;
     const card = document.createElement('div');
     card.className = 'seller-card';
     card.innerHTML = `<div>
-        <div class="name"><span class="dot" style="background:${colors[name]}"></span>${name}</div>
+        <div class="name"><span class="dot" style="background:${colors[login]}"></span>${displayName}</div>
         <div class="count">${sList.length} ${sList.length===1?'venda':'vendas'}</div>
       </div>
       <div class="amount">R$ ${fmtBRL(sTotal)}</div>`;
@@ -91,7 +99,7 @@ export function renderDashboard(){
         ? ` title="Pix: R$ ${fmtBRL(pixPortion(s))} · Cartão: R$ ${fmtBRL(cardPortion(s))}"`
         : '';
       const time = new Date(s.timestamp).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-      tr.innerHTML = `<td>${s.name}</td><td>${s.seller}</td><td><span class="pill ${paymentPillClass(s)}"${pillTitle}>${paymentLabel(s)}</span></td>
+      tr.innerHTML = `<td>${s.name}</td><td>${s.sellerName}</td><td><span class="pill ${paymentPillClass(s)}"${pillTitle}>${paymentLabel(s)}</span></td>
         <td>R$ ${fmtBRL(s.amount)}</td><td>${time}</td>
         <td><button class="edit-btn" data-id="${s.id}" title="Editar">✎</button> <button class="del-btn" data-id="${s.id}" title="Excluir">✕</button></td>`;
       tbody.appendChild(tr);
@@ -120,11 +128,12 @@ export function renderDashboard(){
   // gráficos
   const sellerCtx = document.getElementById('sellerChart');
   const sellerData = sellers.map(n=>sellerTotals[n]);
+  const sellerLabels = sellers.map(n=>sellerDisplayNames[n]);
   if(state.sellerChart) state.sellerChart.destroy();
   state.sellerChart = new Chart(sellerCtx, {
     type:'bar',
     data:{
-      labels:sellers,
+      labels:sellerLabels,
       datasets:[{
         data:sellerData,
         backgroundColor: sellers.map(n=>colors[n]),
@@ -184,7 +193,7 @@ function exportCSV(){
       pixPortion(s).toFixed(2).replace('.',','),
       cardPortion(s).toFixed(2).replace('.',','),
       paymentLabel(s),
-      s.seller, dateStr, timeStr
+      s.sellerName, dateStr, timeStr
     ].map(csvEscape).join(';');
   });
   const csvContent = '\uFEFF' + headers.map(csvEscape).join(';') + '\n' + rows.join('\n');

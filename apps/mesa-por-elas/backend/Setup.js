@@ -19,6 +19,13 @@ function setupSheets() {
     sales.setFrozenRows(1);
   }
 
+  let customers = ss.getSheetByName(SHEET_CUSTOMERS);
+  if (!customers) customers = ss.insertSheet(SHEET_CUSTOMERS);
+  if (customers.getLastRow() === 0) {
+    customers.appendRow(CUSTOMERS_HEADERS);
+    customers.setFrozenRows(1);
+  }
+
   let settings = ss.getSheetByName(SHEET_SETTINGS);
   if (!settings) settings = ss.insertSheet(SHEET_SETTINGS);
   if (settings.getLastRow() === 0) {
@@ -31,7 +38,7 @@ function setupSheets() {
   if (!users) users = ss.insertSheet(SHEET_USERS);
   if (users.getLastRow() === 0) {
     users.appendRow(USERS_HEADERS);
-    users.appendRow([1, 'Administrador', '', 'admin', '1234', 'admin']);
+    users.appendRow([1, 'Administrador', '', 'admin', '1234', 'admin', true]);
     users.setFrozenRows(1);
   }
 
@@ -144,7 +151,7 @@ function blankOutUnusedPaymentColumns_(ss) {
 /**
  * ⚠️ FUNÇÃO DESTRUTIVA — apaga TODOS os usuários cadastrados na aba "users"
  * e a recria do zero, no formato:
- *   user_id | name | email | login | password | role
+ *   user_id | name | email | login | password | role | active
  *
  * Semeia um único administrador inicial, para você conseguir entrar de novo
  * depois do reset:
@@ -163,7 +170,7 @@ function resetUsersSheet() {
   sheet = ss.insertSheet(SHEET_USERS);
   sheet.appendRow(USERS_HEADERS);
   sheet.setFrozenRows(1);
-  sheet.appendRow([1, 'Administrador', '', 'admin', '1234', 'admin']);
+  sheet.appendRow([1, 'Administrador', '', 'admin', '1234', 'admin', true]);
   SpreadsheetApp.flush();
   Logger.log('Usuários zerados com sucesso. Login inicial: admin / 1234 — troque a senha assim que entrar.');
 }
@@ -213,4 +220,167 @@ function renumberSaleIds() {
   sheet.getRange(2, 1, numRows, 1).setValues(newIds);
   SpreadsheetApp.flush();
   Logger.log('IDs de vendas renumerados sequencialmente: 1 a ' + numRows + '.');
+}
+
+/**
+ * ⚠️ Rode esta função UMA VEZ depois de atualizar o código para a versão
+ * com seller_id (chave estrangeira para users) e a coluna "active" em
+ * users. Ela, nessa ordem:
+ *   1. Adiciona a coluna "active" na aba users, marcando TRUE para todo
+ *      mundo já cadastrado — ninguém perde acesso por causa da migração.
+ *   2. Troca o cabeçalho "seller_login" por "seller_id" na aba sales.
+ *   3. Converte o VALOR de cada linha de sales: onde antes tinha o login
+ *      da vendedora (texto), passa a ter o user_id dela (número), buscando
+ *      a correspondência na aba users.
+ *
+ * Vendas cujo login antigo não bate com nenhum usuário atual (ex: a conta
+ * já tinha sido excluída antes dessa migração existir) ficam registradas no
+ * log de execução para revisão manual — o valor original não é apagado, só
+ * não é convertido, para não perder a informação.
+ *
+ * Não apaga nenhum dado. Segura de rodar mais de uma vez.
+ */
+function migrateSellerAndActiveColumns() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  const usersSheet = ss.getSheetByName(SHEET_USERS);
+  if (usersSheet) {
+    const currentHeaders = usersSheet.getRange(1, 1, 1, Math.max(usersSheet.getLastColumn(), 7)).getValues()[0];
+    if (currentHeaders[6] !== 'active') {
+      usersSheet.getRange(1, 7).setValue('active');
+      const lastRow = usersSheet.getLastRow();
+      if (lastRow >= 2) {
+        const numRows = lastRow - 1;
+        const activeCol = usersSheet.getRange(2, 7, numRows, 1).getValues();
+        const filled = activeCol.map(function (r) { return [r[0] === '' ? true : r[0]]; });
+        usersSheet.getRange(2, 7, numRows, 1).setValues(filled);
+      }
+      Logger.log('Coluna "active" adicionada à aba users (todos marcados como ativos).');
+    }
+  }
+
+  const salesSheet = ss.getSheetByName(SHEET_SALES);
+  if (salesSheet) {
+    salesSheet.getRange(1, 8).setValue('seller_id');
+
+    const lastRow = salesSheet.getLastRow();
+    if (lastRow >= 2 && usersSheet) {
+      const numRows = lastRow - 1;
+      const sellerCol = salesSheet.getRange(2, 8, numRows, 1).getValues();
+
+      const loginToId = {};
+      const uLastRow = usersSheet.getLastRow();
+      if (uLastRow >= 2) {
+        const uValues = usersSheet.getRange(2, 1, uLastRow - 1, 4).getValues(); // user_id..login
+        uValues.forEach(function (r) { loginToId[String(r[3]).toLowerCase()] = r[0]; });
+      }
+
+      let unresolved = 0;
+      const converted = sellerCol.map(function (r) {
+        const raw = r[0];
+        if (raw === '' || raw === null) return [raw];
+        if (!isNaN(Number(raw))) return [raw]; // já é número — já migrado, não mexe
+        const id = loginToId[String(raw).toLowerCase()];
+        if (id === undefined) { unresolved++; return [raw]; } // mantém o texto antigo, sem apagar
+        return [id];
+      });
+      salesSheet.getRange(2, 8, numRows, 1).setValues(converted);
+
+      if (unresolved > 0) {
+        Logger.log('Atenção: ' + unresolved + ' venda(s) com login de vendedora não encontrado em users — mantidas com o texto antigo na coluna seller_id. Revise manualmente se necessário.');
+      }
+    }
+  }
+
+  SpreadsheetApp.flush();
+  Logger.log('Migração de seller_id (foreign key) e coluna active concluída.');
+}
+
+/**
+ * ⚠️ Rode esta função UMA VEZ depois de atualizar o código para a versão
+ * com a tabela customers (normalização de cliente). Ela:
+ *   1. Cria a aba "customers" com o cabeçalho certo, se ainda não existir.
+ *   2. Reescreve o cabeçalho da aba "sales" para o novo formato (9 colunas:
+ *      sale_id, customer_id, amount, payment_method, seller_id, created_at,
+ *      pix_amount, card_amount, card_type — no lugar das 12 colunas antigas
+ *      que guardavam nome/telefone/CPF/e-mail direto na venda).
+ *
+ * IMPORTANTE: essa migração assume que a aba "sales" está SEM linhas de
+ * dados (só o cabeçalho) — a estrutura de colunas mudou de um jeito que não
+ * dá pra converter automaticamente linha por linha (4 colunas viraram 1).
+ * Se ainda houver vendas cadastradas, a função para e avisa no log, sem
+ * mexer em nada — exclua manualmente as linhas de dados da aba sales
+ * (mantendo só o cabeçalho) e rode de novo.
+ *
+ * Segura de rodar mais de uma vez.
+ */
+function migrateToCustomersSchema() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  let customers = ss.getSheetByName(SHEET_CUSTOMERS);
+  if (!customers) {
+    customers = ss.insertSheet(SHEET_CUSTOMERS);
+    customers.appendRow(CUSTOMERS_HEADERS);
+    customers.setFrozenRows(1);
+    Logger.log('Aba "customers" criada.');
+  }
+
+  const sales = ss.getSheetByName(SHEET_SALES);
+  if (sales) {
+    const lastRow = sales.getLastRow();
+    if (lastRow > 1) {
+      Logger.log(
+        'ATENÇÃO: a aba "sales" ainda tem ' + (lastRow - 1) + ' linha(s) de dados. ' +
+        'Essa migração reestrutura as colunas de sales de um jeito incompatível com o formato ' +
+        'antigo (4 colunas de cliente viram 1 coluna de customer_id) — exclua manualmente as ' +
+        'linhas de dados (mantendo só o cabeçalho da linha 1) e rode esta função de novo.'
+      );
+      return;
+    }
+    sales.getRange(1, 1, 1, SALES_HEADERS.length).setValues([SALES_HEADERS]);
+    const currentLastCol = sales.getLastColumn();
+    if (currentLastCol > SALES_HEADERS.length) {
+      sales.deleteColumns(SALES_HEADERS.length + 1, currentLastCol - SALES_HEADERS.length);
+    }
+  }
+
+  SpreadsheetApp.flush();
+  Logger.log('Migração para o schema com customers concluída.');
+}
+
+/**
+ * Rode esta função UMA VEZ se sua aba "customers" ainda não tiver a coluna
+ * "club" (ou seja, se ela nasceu no formato de 6 colunas, antes dessa
+ * funcionalidade existir). Insere a coluna nova na posição certa (antes de
+ * "created_at"), marcando FALSE para todo mundo já cadastrado — ninguém
+ * vira cliente do Club sozinho só por causa dessa migração.
+ * Segura de rodar mais de uma vez.
+ */
+function migrateAddClubColumn() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_CUSTOMERS);
+  if (!sheet) {
+    Logger.log('Aba "customers" não encontrada — rode migrateToCustomersSchema() primeiro.');
+    return;
+  }
+  const headers = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), CUSTOMERS_HEADERS.length)).getValues()[0];
+  if (headers[5] === 'club') {
+    Logger.log('A coluna "club" já existe — nada a fazer.');
+    return;
+  }
+
+  // Insere uma coluna em branco antes da posição F (empurra "created_at" pra G).
+  sheet.insertColumnBefore(6);
+  sheet.getRange(1, 6).setValue('club');
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow >= 2) {
+    const numRows = lastRow - 1;
+    const falseValues = [];
+    for (let i = 0; i < numRows; i++) falseValues.push([false]);
+    sheet.getRange(2, 6, numRows, 1).setValues(falseValues);
+  }
+
+  SpreadsheetApp.flush();
+  Logger.log('Coluna "club" adicionada à aba customers (todos marcados como não-Club).');
 }

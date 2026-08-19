@@ -22,7 +22,7 @@ function compareBy(field){
     case 'pagamento':
       return (a,b)=> paymentLabel(a).localeCompare(paymentLabel(b), 'pt-BR');
     case 'vendedora':
-      return (a,b)=> a.seller.localeCompare(b.seller, 'pt-BR');
+      return (a,b)=> a.sellerName.localeCompare(b.sellerName, 'pt-BR');
     case 'misto':
       return (a,b)=> (a.payment==='misto'?1:0) - (b.payment==='misto'?1:0);
     default:
@@ -73,7 +73,7 @@ export function renderVendasList(){
       <div class="sale-row-main">
         <div class="sale-row-name">${s.name}</div>
         <div class="sale-row-meta">
-          ${s.seller} &middot; <span class="pill ${paymentPillClass(s)}">${paymentLabel(s)}</span> &middot; ${dateStr} ${timeStr}
+          ${s.sellerName} &middot; <span class="pill ${paymentPillClass(s)}">${paymentLabel(s)}</span> &middot; ${dateStr} ${timeStr}
         </div>
       </div>
       <div class="sale-row-actions">

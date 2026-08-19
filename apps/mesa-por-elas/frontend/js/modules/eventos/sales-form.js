@@ -6,9 +6,11 @@
 // de ser avaliados (ex: clique num botão, envio do formulário).
 
 import { state } from '../../state.js';
-import { fmtBRL, selectChoice, pixPortion, cardPortion, isValidEmail, isValidCPF } from '../../utils.js';
+import { fmtBRL, selectChoice, pixPortion, cardPortion, isValidEmail, isValidCPF, maskCpf, maskPhone } from '../../utils.js';
 import { addSaleAPI, updateSaleAPI } from './sales-data.js';
 import { populateSellerGroup } from '../../auth.js';
+import { confirmModal } from '../../modal.js';
+import { fetchCustomers } from '../customers.js';
 
 function toggleSplitPaymentBlocks(isSplit){
   document.getElementById('singlePaymentBlock').style.display = isSplit ? 'none' : '';
@@ -32,45 +34,22 @@ function clearFieldError(id){
   document.getElementById(id+'Error').textContent = '';
 }
 
-/**
- * Procura, entre as vendas já registradas, alguma com o mesmo CPF, telefone
- * ou e-mail informado — mas de um nome diferente. Se achar, é sinal de que
- * esse contato já pertence a outra cliente cadastrada, então o registro
- * deve ser bloqueado (evita duas pessoas "roubando" o cadastro uma da
- * outra, seja por erro de digitação ou má-fé).
- * `excludeId` evita que uma venda em edição seja comparada consigo mesma.
- */
-function findIdentityConflict(name, cpf, phone, email, excludeId){
-  const normalizedName = name.trim().toLowerCase();
-  const normalizedEmail = email ? email.trim().toLowerCase() : '';
-  const match = state.sales.find(s=>{
-    if(excludeId && s.id === excludeId) return false;
-    const cpfMatch = cpf && s.cpf && s.cpf === cpf;
-    const phoneMatch = phone && s.phone && s.phone === phone;
-    const emailMatch = normalizedEmail && s.email && s.email.trim().toLowerCase() === normalizedEmail;
-    return cpfMatch || phoneMatch || emailMatch;
-  });
-  if(match && match.name.trim().toLowerCase() !== normalizedName){
-    return match;
-  }
-  return null;
+/** Busca uma cliente cadastrada pelo CPF (ignorando pontuação da máscara). */
+function findCustomerByCpf(cpf){
+  const digits = String(cpf).replace(/\D/g,'');
+  if(!digits) return null;
+  return state.customers.find(c=> c.cpf && c.cpf.replace(/\D/g,'') === digits) || null;
 }
 
 /**
- * Busca a venda mais recente com esse nome exato (sem diferenciar
- * maiúsculas/acentuação de caixa) e devolve telefone/CPF/e-mail dela, para
- * autopreencher o formulário quando a cliente já é conhecida.
+ * Busca a cliente cadastrada com esse nome exato (sem diferenciar
+ * maiúsculas/acentuação de caixa), para autopreencher telefone/CPF/e-mail
+ * quando ela já é conhecida.
  */
-function findLatestSaleByName(name, excludeId){
+function findCustomerByName(name){
   const normalizedName = name.trim().toLowerCase();
   if(!normalizedName) return null;
-  const matches = state.sales.filter(s=>{
-    if(excludeId && s.id === excludeId) return false;
-    return s.name && s.name.trim().toLowerCase() === normalizedName;
-  });
-  if(matches.length === 0) return null;
-  matches.sort((a,b)=> new Date(b.timestamp) - new Date(a.timestamp));
-  return matches[0];
+  return state.customers.find(c=> c.name && c.name.trim().toLowerCase() === normalizedName) || null;
 }
 
 export function startEdit(id){
@@ -147,12 +126,12 @@ export function initSalesFormListeners(){
   });
 
   // Autopreenchimento: ao terminar de digitar o nome completo (perder o
-  // foco do campo), busca a venda mais recente com esse nome e preenche
-  // telefone/CPF/e-mail automaticamente, caso a cliente já seja conhecida.
+  // foco do campo), busca a cliente cadastrada com esse nome e preenche
+  // telefone/CPF/e-mail automaticamente, caso ela já seja conhecida.
   document.getElementById('fName').addEventListener('blur', e=>{
     const typedName = e.target.value.trim();
     if(!typedName) return;
-    const found = findLatestSaleByName(typedName, state.editingId);
+    const found = findCustomerByName(typedName);
     if(found){
       document.getElementById('fPhone').value = found.phone || '';
       document.getElementById('fCpf').value = found.cpf || '';
@@ -162,17 +141,11 @@ export function initSalesFormListeners(){
 
   // Máscara de CPF
   document.getElementById('fCpf').addEventListener('input', e=>{
-    let v = e.target.value.replace(/\D/g,'').slice(0,11);
-    v = v.replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d{1,2})$/,'$1-$2');
-    e.target.value = v;
+    e.target.value = maskCpf(e.target.value);
   });
   // Máscara de telefone
   document.getElementById('fPhone').addEventListener('input', e=>{
-    let v = e.target.value.replace(/\D/g,'').slice(0,11);
-    if(v.length>10) v = v.replace(/(\d{2})(\d{5})(\d{4})/,'($1) $2-$3');
-    else if(v.length>6) v = v.replace(/(\d{2})(\d{4})(\d{0,4})/,'($1) $2-$3');
-    else if(v.length>2) v = v.replace(/(\d{2})(\d{0,5})/,'($1) $2');
-    e.target.value = v;
+    e.target.value = maskPhone(e.target.value);
   });
 
   // Força e-mail em minúsculo em tempo real (independe de Caps Lock) —
@@ -248,11 +221,37 @@ export function initSalesFormListeners(){
       return;
     }
 
-    const identityConflict = findIdentityConflict(name, cpf, phone, email, state.editingId);
-    if(identityConflict){
-      msg.textContent = 'Esse cpf, telefone ou email já está cadastrado no nome de outra pessoa.';
+    const identityConflict = findCustomerByCpf(cpf);
+    if(identityConflict && identityConflict.name.trim().toLowerCase() !== name.trim().toLowerCase()){
+      msg.textContent = 'Esse CPF já está cadastrado no nome de outra pessoa.';
       msg.className = 'form-msg err';
       return;
+    }
+
+    if(identityConflict){
+      const phoneChanged = identityConflict.phone && identityConflict.phone !== phone;
+      const emailChanged = identityConflict.email && email && identityConflict.email.trim().toLowerCase() !== email.trim().toLowerCase();
+      if(phoneChanged || emailChanged){
+        let confirmMessage;
+        if(phoneChanged && emailChanged){
+          confirmMessage = 'Telefone e e-mail informados não correspondem aos dados cadastrados do cliente. Deseja prosseguir e atualizar o cadastro?';
+        } else if(phoneChanged){
+          confirmMessage = 'Telefone informado não corresponde com o número cadastrado. Deseja prosseguir e atualizar o número do cliente?';
+        } else {
+          confirmMessage = 'E-mail informado não corresponde com o e-mail cadastrado. Deseja prosseguir e atualizar o e-mail do cliente?';
+        }
+        const confirmed = await confirmModal({
+          title: 'Dados do cliente diferentes',
+          message: confirmMessage,
+          confirmLabel: 'Atualizar',
+          cancelLabel: 'Cancelar'
+        });
+        if(!confirmed){
+          msg.textContent = 'Registro cancelado — os dados do cliente não foram alterados.';
+          msg.className = 'form-msg err';
+          return;
+        }
+      }
     }
 
     let amount, payment, cardType, pixAmount, cardAmount;
@@ -289,9 +288,10 @@ export function initSalesFormListeners(){
 
     if(state.editingId){
       try{
-        await updateSaleAPI(state.editingId, saleFields);
+        const res = await updateSaleAPI(state.editingId, saleFields);
         const idx = state.sales.findIndex(s=>s.id===state.editingId);
-        if(idx !== -1) state.sales[idx] = { ...state.sales[idx], ...saleFields };
+        if(idx !== -1) state.sales[idx] = { ...state.sales[idx], ...saleFields, sellerName: res.sellerName };
+        await fetchCustomers(); // reflete telefone/e-mail que o backend possa ter atualizado
       }catch(err){
         msg.textContent = 'Não foi possível salvar. Verifique sua conexão e tente novamente.';
         msg.className = 'form-msg err';
@@ -312,6 +312,7 @@ export function initSalesFormListeners(){
     try{
       const savedSale = await addSaleAPI(saleFields);
       state.sales.push(savedSale);
+      await fetchCustomers(); // pega o cliente novo (ou telefone/e-mail atualizado) para a sessão atual
     }catch(err){
       msg.textContent = 'Não foi possível registrar. Verifique sua conexão e tente novamente.';
       msg.className = 'form-msg err';

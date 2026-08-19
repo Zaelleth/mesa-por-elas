@@ -53,6 +53,7 @@ export async function addSaleAPI(sale){
 export async function updateSaleAPI(id, sale){
   const res = await apiPost('updateSale', { id, sale });
   if(!res || !res.ok) throw new Error((res && res.error) || 'Erro ao salvar as alterações.');
+  return res;
 }
 export async function deleteSaleAPI(id){
   const res = await apiPost('deleteSale', { id });

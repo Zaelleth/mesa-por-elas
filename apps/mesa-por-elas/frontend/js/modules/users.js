@@ -41,6 +41,16 @@ function canDeleteUser(target){
   }
   return false;
 }
+/** Mesma regra do backend: ninguém inativa a própria conta; gestor não mexe em admin/outro gestor. */
+function canToggleActive(target){
+  if(target.login === state.currentUser) return false;
+  const role = state.currentRole;
+  if(role === 'admin') return true;
+  if(role === 'gestor'){
+    return target.role !== 'admin' && target.role !== 'gestor';
+  }
+  return false;
+}
 
 // ---------- Comunicação com o backend ----------
 async function fetchUsers(){
@@ -62,6 +72,10 @@ async function updateUserAPI(id, user){
 async function deleteUserAPI(id){
   const res = await apiPost('deleteUser', { id });
   if(!res || !res.ok) throw new Error((res && res.error) || 'Erro ao excluir o usuário.');
+}
+async function setUserActiveAPI(id, active){
+  const res = await apiPost('setUserActive', { id, active });
+  if(!res || !res.ok) throw new Error((res && res.error) || 'Erro ao alterar o status do usuário.');
 }
 
 // ---------- Formulário ----------
@@ -149,21 +163,52 @@ export function renderUsersList(){
   list.forEach(u=>{
     const canEdit = canEditUser(u);
     const canDelete = canDeleteUser(u);
+    const canToggle = canToggleActive(u);
     const row = document.createElement('div');
     row.className = 'sale-row';
+    if(u.active === false) row.style.opacity = '0.6';
     row.innerHTML = `
       <div class="sale-row-main">
         <div class="sale-row-name">${u.name}</div>
         <div class="sale-row-meta">
-          Login: ${u.login} &middot; <span class="pill ${u.role}">${roleLabel(u.role)}</span>${u.email ? ' &middot; ' + u.email : ''}
+          Login: ${u.login} &middot; <span class="pill ${u.role}">${roleLabel(u.role)}</span>
+          ${u.active === false ? ' &middot; <span class="pill inactive">Inativo</span>' : ''}
+          ${u.email ? ' &middot; ' + u.email : ''}
         </div>
       </div>
       <div class="sale-row-actions">
+        ${canToggle ? `<button class="toggle-active-btn" data-id="${u.id}" data-active="${u.active !== false}" title="${u.active === false ? 'Reativar' : 'Inativar'}">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M8 2.2v6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+            <path d="M4.6 4.3a5.3 5.3 0 1 0 6.8 0" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+          </svg>
+        </button>` : ''}
         ${canEdit ? `<button class="edit-btn" data-id="${u.id}" title="Editar">✎</button>` : ''}
         ${canDelete ? `<button class="del-btn" data-id="${u.id}" title="Excluir">✕</button>` : ''}
       </div>
     `;
     container.appendChild(row);
+  });
+
+  container.querySelectorAll('.toggle-active-btn').forEach(b=>{
+    b.addEventListener('click', async ()=>{
+      const user = state.users.find(u=>u.id === b.dataset.id);
+      if(!user) return;
+      const willActivate = user.active === false;
+      const label = willActivate ? 'Reativar' : 'Inativar';
+      const confirmMsg = willActivate
+        ? `Reativar "${user.name}"? Ela volta a conseguir acessar o sistema.`
+        : `Inativar "${user.name}"? Ela perde o acesso ao sistema imediatamente, mas o histórico de vendas dela é preservado.`;
+      if(confirm(confirmMsg)){
+        try{
+          await setUserActiveAPI(user.id, willActivate);
+          user.active = willActivate;
+          renderUsersList();
+        }catch(err){
+          alert(err.message);
+        }
+      }
+    });
   });
 
   container.querySelectorAll('.edit-btn').forEach(b=>{

@@ -68,6 +68,20 @@ export function isValidCPF(cpf){
   return true;
 }
 
+// ---------- Máscaras de campo (compartilhadas entre o formulário de venda e a tela de Clientes) ----------
+export function maskCpf(value){
+  let v = value.replace(/\D/g,'').slice(0,11);
+  v = v.replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d{1,2})$/,'$1-$2');
+  return v;
+}
+export function maskPhone(value){
+  let v = value.replace(/\D/g,'').slice(0,11);
+  if(v.length>10) v = v.replace(/(\d{2})(\d{5})(\d{4})/,'($1) $2-$3');
+  else if(v.length>6) v = v.replace(/(\d{2})(\d{4})(\d{0,4})/,'($1) $2-$3');
+  else if(v.length>2) v = v.replace(/(\d{2})(\d{0,5})/,'($1) $2');
+  return v;
+}
+
 // ---------- Helpers de pagamento (cobrem pagamento único e dividido) ----------
 export function pixPortion(s){
   if(typeof s.pixAmount === 'number') return s.pixAmount;
