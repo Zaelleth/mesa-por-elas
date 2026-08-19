@@ -2,11 +2,13 @@
 // Importa e conecta todos os módulos; não contém lógica de negócio própria.
 
 import { state } from './state.js';
-import { attemptLogin, logout } from './auth.js';
+import { isElevatedRole } from './utils.js';
+import { attemptLogin, logout, fetchSellers, populateSellerGroup } from './auth.js';
 import { loadData, startAutoRefresh } from './modules/eventos/sales-data.js';
 import { renderDashboard, renderRecent, initDashboardListeners } from './modules/eventos/dashboard.js';
 import { renderVendasList, initVendasListeners } from './modules/eventos/vendas-list.js';
 import { initSalesFormListeners, resetForm } from './modules/eventos/sales-form.js';
+import { loadAndRenderUsers, initUsersListeners, resetUserForm } from './modules/users.js';
 // import { initClubDashboard } from './modules/club/dashboard.js';
 // import { initClubSubscribers } from './modules/club/subscribers.js';
 
@@ -57,13 +59,11 @@ document.getElementById('logoutBtn').addEventListener('click', async ()=>{
   document.getElementById('loginMsg').textContent = '';
   document.getElementById('mainApp').style.display = 'none';
   document.getElementById('loginScreen').style.display = 'flex';
-  document.getElementById('sellerGroup').style.pointerEvents = '';
-  document.getElementById('sellerGroup').style.opacity = '';
 });
 
 // ---------- Navegação entre abas ----------
 document.querySelectorAll('nav.tabs button').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
+  btn.addEventListener('click', async ()=>{
     const previousBtn = document.querySelector('nav.tabs button.active');
     const leavingTab = previousBtn ? previousBtn.dataset.tab : null;
 
@@ -75,6 +75,11 @@ document.querySelectorAll('nav.tabs button').forEach(btn=>{
       resetForm();
       document.getElementById('formMsg').textContent = '';
     }
+    // Mesma lógica de segurança aplicada ao formulário de usuário: sair da
+    // aba sem salvar descarta o rascunho de criação/edição em andamento.
+    if(leavingTab === 'usuarios' && btn.dataset.tab !== 'usuarios'){
+      resetUserForm();
+    }
 
     document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
@@ -83,6 +88,14 @@ document.querySelectorAll('nav.tabs button').forEach(btn=>{
     document.getElementById('pageTitle').textContent = btn.dataset.label || btn.textContent.trim();
     if(btn.dataset.tab==='dashboard') renderDashboard();
     if(btn.dataset.tab==='vendas') renderVendasList();
+    if(btn.dataset.tab==='usuarios') loadAndRenderUsers();
+    if(btn.dataset.tab==='venda' && isElevatedRole(state.currentRole)){
+      // Busca a lista de vendedoras fresca a cada entrada nessa aba — se um
+      // admin/gestor acabou de cadastrar ou remover alguém em "Usuários",
+      // o dropdown reflete isso na hora, sem precisar deslogar e logar de novo.
+      await fetchSellers();
+      populateSellerGroup();
+    }
   });
 });
 
@@ -90,6 +103,7 @@ document.querySelectorAll('nav.tabs button').forEach(btn=>{
 initDashboardListeners();
 initVendasListeners();
 initSalesFormListeners();
+initUsersListeners();
 
 // Subtítulo do topo mostra sempre a data de hoje (formatada por extenso).
 const todayLabel = new Date().toLocaleDateString('pt-BR', {

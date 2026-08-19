@@ -6,8 +6,9 @@
 // de ser avaliados (ex: clique num botão, envio do formulário).
 
 import { state } from '../../state.js';
-import { fmtBRL, selectChoice, pixPortion, cardPortion } from '../../utils.js';
+import { fmtBRL, selectChoice, pixPortion, cardPortion, isValidEmail, isValidCPF } from '../../utils.js';
 import { addSaleAPI, updateSaleAPI } from './sales-data.js';
+import { populateSellerGroup } from '../../auth.js';
 
 function toggleSplitPaymentBlocks(isSplit){
   document.getElementById('singlePaymentBlock').style.display = isSplit ? 'none' : '';
@@ -20,6 +21,58 @@ function updateSplitTotalLabel(){
   document.getElementById('splitTotalLabel').textContent = 'R$ ' + fmtBRL(pix + card);
 }
 
+/** Marca um campo como inválido: borda vermelha + mensagem explicativa embaixo. */
+function setFieldError(id, message){
+  document.getElementById(id).classList.add('invalid');
+  document.getElementById(id+'Error').textContent = message;
+}
+/** Remove a marcação de erro (borda + mensagem) de um campo. */
+function clearFieldError(id){
+  document.getElementById(id).classList.remove('invalid');
+  document.getElementById(id+'Error').textContent = '';
+}
+
+/**
+ * Procura, entre as vendas já registradas, alguma com o mesmo CPF, telefone
+ * ou e-mail informado — mas de um nome diferente. Se achar, é sinal de que
+ * esse contato já pertence a outra cliente cadastrada, então o registro
+ * deve ser bloqueado (evita duas pessoas "roubando" o cadastro uma da
+ * outra, seja por erro de digitação ou má-fé).
+ * `excludeId` evita que uma venda em edição seja comparada consigo mesma.
+ */
+function findIdentityConflict(name, cpf, phone, email, excludeId){
+  const normalizedName = name.trim().toLowerCase();
+  const normalizedEmail = email ? email.trim().toLowerCase() : '';
+  const match = state.sales.find(s=>{
+    if(excludeId && s.id === excludeId) return false;
+    const cpfMatch = cpf && s.cpf && s.cpf === cpf;
+    const phoneMatch = phone && s.phone && s.phone === phone;
+    const emailMatch = normalizedEmail && s.email && s.email.trim().toLowerCase() === normalizedEmail;
+    return cpfMatch || phoneMatch || emailMatch;
+  });
+  if(match && match.name.trim().toLowerCase() !== normalizedName){
+    return match;
+  }
+  return null;
+}
+
+/**
+ * Busca a venda mais recente com esse nome exato (sem diferenciar
+ * maiúsculas/acentuação de caixa) e devolve telefone/CPF/e-mail dela, para
+ * autopreencher o formulário quando a cliente já é conhecida.
+ */
+function findLatestSaleByName(name, excludeId){
+  const normalizedName = name.trim().toLowerCase();
+  if(!normalizedName) return null;
+  const matches = state.sales.filter(s=>{
+    if(excludeId && s.id === excludeId) return false;
+    return s.name && s.name.trim().toLowerCase() === normalizedName;
+  });
+  if(matches.length === 0) return null;
+  matches.sort((a,b)=> new Date(b.timestamp) - new Date(a.timestamp));
+  return matches[0];
+}
+
 export function startEdit(id){
   const sale = state.sales.find(s=>s.id===id);
   if(!sale) return;
@@ -28,8 +81,7 @@ export function startEdit(id){
   document.getElementById('fPhone').value = sale.phone;
   document.getElementById('fCpf').value = sale.cpf;
   document.getElementById('fEmail').value = sale.email;
-  state.selectedSeller = sale.seller;
-  selectChoice('sellerGroup', sale.seller);
+  populateSellerGroup(sale.seller);
 
   if(sale.payment === 'misto'){
     document.getElementById('fSplitPayment').checked = true;
@@ -58,20 +110,22 @@ export function startEdit(id){
 }
 
 export function resetForm(){
-  ['fName','fPhone','fCpf','fEmail','fAmount','fPixAmount','fCardAmount'].forEach(id=>document.getElementById(id).value='');
+  ['fName','fPhone','fCpf','fEmail','fAmount','fPixAmount','fCardAmount'].forEach(id=>{
+    document.getElementById(id).value='';
+    document.getElementById(id).classList.remove('invalid');
+  });
+  clearFieldError('fCpf');
+  clearFieldError('fEmail');
   document.querySelectorAll('.choice-btn').forEach(b=>b.classList.remove('selected'));
   document.getElementById('fSplitPayment').checked = false;
   toggleSplitPaymentBlocks(false);
   updateSplitTotalLabel();
-  state.selectedPayment = null; state.selectedSeller = null; state.selectedCardType = null; state.editingId = null;
+  state.selectedPayment = null; state.selectedCardType = null; state.editingId = null;
   document.getElementById('formTitle').textContent = 'Registrar venda';
   document.getElementById('formHint').textContent = 'Preencha os dados da cliente e da venda';
   document.getElementById('submitBtn').textContent = 'Registrar venda';
   document.getElementById('cancelEditBtn').style.display = 'none';
-  if(state.currentRole && state.currentRole !== 'admin'){
-    state.selectedSeller = state.currentUser;
-    selectChoice('sellerGroup', state.currentUser);
-  }
+  populateSellerGroup();
 }
 
 /** Liga todos os listeners do formulário de venda (máscaras, escolhas, envio). */
@@ -88,12 +142,22 @@ export function initSalesFormListeners(){
     btn.classList.add('selected');
     state.selectedPayment = btn.dataset.val;
   });
-  document.getElementById('sellerGroup').addEventListener('click', e=>{
-    const btn = e.target.closest('.choice-btn');
-    if(!btn) return;
-    document.querySelectorAll('#sellerGroup .choice-btn').forEach(b=>b.classList.remove('selected'));
-    btn.classList.add('selected');
-    state.selectedSeller = btn.dataset.val;
+  document.getElementById('sellerSelect').addEventListener('change', e=>{
+    state.selectedSeller = e.target.value;
+  });
+
+  // Autopreenchimento: ao terminar de digitar o nome completo (perder o
+  // foco do campo), busca a venda mais recente com esse nome e preenche
+  // telefone/CPF/e-mail automaticamente, caso a cliente já seja conhecida.
+  document.getElementById('fName').addEventListener('blur', e=>{
+    const typedName = e.target.value.trim();
+    if(!typedName) return;
+    const found = findLatestSaleByName(typedName, state.editingId);
+    if(found){
+      document.getElementById('fPhone').value = found.phone || '';
+      document.getElementById('fCpf').value = found.cpf || '';
+      document.getElementById('fEmail').value = found.email || '';
+    }
   });
 
   // Máscara de CPF
@@ -109,6 +173,31 @@ export function initSalesFormListeners(){
     else if(v.length>6) v = v.replace(/(\d{2})(\d{4})(\d{0,4})/,'($1) $2-$3');
     else if(v.length>2) v = v.replace(/(\d{2})(\d{0,5})/,'($1) $2');
     e.target.value = v;
+  });
+
+  // Força e-mail em minúsculo em tempo real (independe de Caps Lock) —
+  // evita duplicidade de cadastro por diferença só de caixa (ex:
+  // "Maria@Email.com" vs "maria@email.com" tratados como pessoas
+  // diferentes na checagem de identidade) e mantém o banco mais limpo.
+  document.getElementById('fEmail').addEventListener('input', e=>{
+    const start = e.target.selectionStart;
+    const end = e.target.selectionEnd;
+    e.target.value = e.target.value.toLowerCase();
+    e.target.setSelectionRange(start, end);
+  });
+
+  // Feedback visual (borda vermelha) ao sair do campo, se o valor digitado
+  // não for válido. E-mail é opcional, então só marca erro se algo foi
+  // digitado e está no formato errado — campo vazio não é erro.
+  document.getElementById('fEmail').addEventListener('blur', e=>{
+    const v = e.target.value.trim();
+    if(v.length > 0 && !isValidEmail(v)) setFieldError('fEmail', 'E-mail inválido. Confira o endereço digitado.');
+    else clearFieldError('fEmail');
+  });
+  document.getElementById('fCpf').addEventListener('blur', e=>{
+    const v = e.target.value.trim();
+    if(v.length > 0 && !isValidCPF(v)) setFieldError('fCpf', 'CPF inválido. Confira os números digitados.');
+    else clearFieldError('fCpf');
   });
 
   document.getElementById('fSplitPayment').addEventListener('change', e=>{
@@ -136,8 +225,32 @@ export function initSalesFormListeners(){
     const msg = document.getElementById('formMsg');
     const isSplit = document.getElementById('fSplitPayment').checked;
 
-    if(!name || !phone || !cpf || !email || !state.selectedSeller){
-      msg.textContent = 'Preencha todos os campos, incluindo a vendedora.';
+    clearFieldError('fCpf');
+    clearFieldError('fEmail');
+
+    if(!name || !phone || !cpf || !state.selectedSeller){
+      msg.textContent = 'Preencha nome completo, telefone, CPF e vendedora.';
+      msg.className = 'form-msg err';
+      return;
+    }
+
+    if(!isValidCPF(cpf)){
+      setFieldError('fCpf', 'CPF inválido. Confira os números digitados.');
+      msg.textContent = 'CPF inválido. Confira os números digitados.';
+      msg.className = 'form-msg err';
+      return;
+    }
+
+    if(email && !isValidEmail(email)){
+      setFieldError('fEmail', 'E-mail inválido. Confira o endereço digitado.');
+      msg.textContent = 'E-mail inválido. Confira o endereço digitado.';
+      msg.className = 'form-msg err';
+      return;
+    }
+
+    const identityConflict = findIdentityConflict(name, cpf, phone, email, state.editingId);
+    if(identityConflict){
+      msg.textContent = 'Esse cpf, telefone ou email já está cadastrado no nome de outra pessoa.';
       msg.className = 'form-msg err';
       return;
     }

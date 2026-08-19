@@ -1,7 +1,7 @@
 // Módulo Eventos — tela "Vendas": listagem completa, com ordenação.
 
 import { state } from '../../state.js';
-import { fmtBRL, paymentLabel, paymentPillClass } from '../../utils.js';
+import { fmtBRL, paymentLabel, paymentPillClass, isElevatedRole } from '../../utils.js';
 import { deleteSaleAPI } from './sales-data.js';
 import { startEdit } from './sales-form.js';
 
@@ -31,10 +31,10 @@ function compareBy(field){
 }
 
 function sortedSales(){
-  // Mesma regra de visibilidade do restante do app: vendedora só vê o que é dela.
-  const base = (state.currentRole && state.currentRole !== 'admin')
-    ? state.sales.filter(s=>s.seller===state.currentUser)
-    : state.sales;
+  // Mesma regra de visibilidade do restante do app: só vendedora vê apenas o que é dela.
+  const base = isElevatedRole(state.currentRole)
+    ? state.sales
+    : state.sales.filter(s=>s.seller===state.currentUser);
   const list = [...base].sort(compareBy(state.vendasSort.field));
   if(state.vendasSort.dir === 'desc') list.reverse();
   return list;

@@ -4,6 +4,7 @@
  * Este projeto está dividido em arquivos por responsabilidade:
  *   Main.js    → roteamento HTTP (este arquivo)
  *   Auth.js    → login, sessões, controle de acesso
+ *   Users.js   → CRUD do cadastro de usuários (aba "Users")
  *   Sales.js   → CRUD de vendas (aba "Vendas")
  *   Config.js  → meta de vendas (aba "Config")
  *   Setup.js   → criação inicial e migrações de planilha
@@ -29,6 +30,12 @@ function doGet(e) {
     if (action === 'getSales') return jsonOut({ ok: true, sales: readSales() });
     if (action === 'getConfig') return jsonOut({ ok: true, goal: readConfig().goal });
     if (action === 'getSellers') return jsonOut({ ok: true, sellers: getSellers() });
+    if (action === 'getUsers') {
+      if (!isAdminOrGestorSession(e.parameter.token)) {
+        return jsonOut({ ok: false, error: 'Acesso restrito a administradores e gestores.' });
+      }
+      return jsonOut({ ok: true, users: readUsers() });
+    }
     return jsonOut({ ok: false, error: 'Ação GET desconhecida.' });
   } catch (err) {
     return jsonOut({ ok: false, error: String(err) });
@@ -69,6 +76,28 @@ function doPost(e) {
     if (action === 'updateSale') return jsonOut(updateSale(body.id, body.sale));
     if (action === 'deleteSale') return jsonOut(deleteSale(body.id));
     if (action === 'saveConfig') return jsonOut(saveConfig(body.goal));
+
+    if (action === 'addUser') {
+      const session = getSessionData(body.token);
+      if (!session || (session.role !== 'admin' && session.role !== 'gestor')) {
+        return jsonOut({ ok: false, error: 'Acesso restrito a administradores e gestores.' });
+      }
+      return jsonOut(addUser(body.user, session.role));
+    }
+    if (action === 'updateUser') {
+      const session = getSessionData(body.token);
+      if (!session || (session.role !== 'admin' && session.role !== 'gestor')) {
+        return jsonOut({ ok: false, error: 'Acesso restrito a administradores e gestores.' });
+      }
+      return jsonOut(updateUser(body.id, body.user, session.role, session.username));
+    }
+    if (action === 'deleteUser') {
+      const session = getSessionData(body.token);
+      if (!session || (session.role !== 'admin' && session.role !== 'gestor')) {
+        return jsonOut({ ok: false, error: 'Acesso restrito a administradores e gestores.' });
+      }
+      return jsonOut(deleteUser(body.id, session.role));
+    }
 
     return jsonOut({ ok: false, error: 'Ação POST desconhecida.' });
   } catch (err) {

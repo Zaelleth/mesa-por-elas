@@ -27,5 +27,10 @@ export const state = {
   selectedPayment: null,
   selectedSeller: null,
   selectedCardType: null,
-  editingId: null
+  editingId: null,
+
+  // Tela de Usuários (admin)
+  users: [],
+  editingUserId: null,
+  selectedUserRole: null
 };

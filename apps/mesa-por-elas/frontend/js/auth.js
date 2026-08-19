@@ -1,9 +1,9 @@
-// Autenticação, sessão e controle de permissões (admin vs. vendedora).
+// Autenticação, sessão e controle de permissões (admin / gestor / vendedora).
 
 import { BOOTSTRAP_TOKEN } from './config.js';
 import { state } from './state.js';
 import { apiGet, apiPost, onSessionExpired } from './api.js';
-import { selectChoice } from './utils.js';
+import { isElevatedRole } from './utils.js';
 
 async function loginAPI(username, password){
   return apiPost('login', { username, password }, BOOTSTRAP_TOKEN);
@@ -16,25 +16,61 @@ export async function fetchSellers(){
   }catch(e){ state.knownSellers = []; }
 }
 
-export function populateSellerGroup(){
-  const group = document.getElementById('sellerGroup');
-  group.innerHTML = '';
-  // Garante que a própria pessoa logada apareça como opção, mesmo se a lista
-  // de vendedoras ainda não tiver sido carregada por algum motivo.
-  const names = new Set(state.knownSellers);
-  if(state.currentRole !== 'admin' && state.currentUser) names.add(state.currentUser);
-  [...names].sort((a,b)=>a.localeCompare(b,'pt-BR')).forEach(name=>{
-    const btn = document.createElement('div');
-    btn.className = 'choice-btn';
-    btn.dataset.val = name;
-    btn.textContent = name;
-    group.appendChild(btn);
+/**
+ * Preenche o campo de vendedora do formulário de venda.
+ * - admin/gestor: mostram um <select> com todas as vendedoras cadastradas
+ *   (busca fresca a cada vez que essa função roda — ver main.js, que chama
+ *   isso de novo toda vez que a aba "Nova Venda" é aberta, não só no login).
+ * - vendedora: o campo inteiro fica escondido, já que a venda é sempre
+ *   atribuída automaticamente à própria pessoa logada.
+ *
+ * @param {string|null} preselect Login a manter selecionado (usado ao editar
+ *   uma venda antiga) — se essa vendedora não estiver mais na lista ativa
+ *   (conta excluída depois), ela ainda aparece como opção, marcada.
+ */
+export function populateSellerGroup(preselect){
+  const wrap = document.getElementById('sellerFieldWrap');
+  const select = document.getElementById('sellerSelect');
+  const elevated = isElevatedRole(state.currentRole);
+
+  if(!elevated){
+    wrap.style.display = 'none';
+    state.selectedSeller = state.currentUser;
+    return;
+  }
+
+  wrap.style.display = '';
+  select.innerHTML = '';
+
+  let names = [...state.knownSellers];
+  if(preselect && !names.includes(preselect)) names.push(preselect);
+  names.sort((a,b)=>a.localeCompare(b,'pt-BR'));
+
+  if(names.length === 0){
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = 'Nenhuma vendedora cadastrada';
+    select.appendChild(opt);
+    state.selectedSeller = null;
+    return;
+  }
+
+  names.forEach(name=>{
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name + (!state.knownSellers.includes(name) ? ' (conta removida)' : '');
+    select.appendChild(opt);
   });
+
+  const value = preselect || (names.includes(state.selectedSeller) ? state.selectedSeller : names[0]);
+  select.value = value;
+  state.selectedSeller = value;
 }
 
 export function applyRolePermissions(){
-  const isAdmin = state.currentRole === 'admin';
-  document.querySelector('nav.tabs button[data-tab="dashboard"]').style.display = isAdmin ? '' : 'none';
+  const elevated = isElevatedRole(state.currentRole); // admin ou gestor
+  document.querySelector('nav.tabs button[data-tab="dashboard"]').style.display = elevated ? '' : 'none';
+  document.querySelector('nav.tabs button[data-tab="usuarios"]').style.display = elevated ? '' : 'none';
   document.querySelector('nav.tabs button[data-tab="venda"]').style.display = '';
   document.getElementById('view-dashboard').classList.remove('active');
   document.getElementById('view-venda').classList.remove('active');
@@ -42,21 +78,14 @@ export function applyRolePermissions(){
 
   populateSellerGroup();
 
-  if(isAdmin){
+  if(elevated){
     document.querySelector('nav.tabs button[data-tab="dashboard"]').classList.add('active');
     document.getElementById('view-dashboard').classList.add('active');
     document.getElementById('pageTitle').textContent = 'Dashboard';
-    document.getElementById('sellerGroup').style.pointerEvents = '';
-    document.getElementById('sellerGroup').style.opacity = '';
   } else {
     document.querySelector('nav.tabs button[data-tab="venda"]').classList.add('active');
     document.getElementById('view-venda').classList.add('active');
     document.getElementById('pageTitle').textContent = 'Nova Venda';
-    // Trava a escolha de vendedora na própria pessoa logada
-    state.selectedSeller = state.currentUser;
-    selectChoice('sellerGroup', state.currentUser);
-    document.getElementById('sellerGroup').style.pointerEvents = 'none';
-    document.getElementById('sellerGroup').style.opacity = '0.65';
   }
   document.getElementById('whoLabel').textContent = state.currentUser;
 }

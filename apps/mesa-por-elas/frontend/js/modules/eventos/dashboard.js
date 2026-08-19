@@ -3,7 +3,7 @@
 // (variável global, não precisa de import).
 
 import { state } from '../../state.js';
-import { fmtBRL, dateOfSale, todayStr, csvEscape, pixPortion, cardPortion, paymentLabel, paymentPillClass } from '../../utils.js';
+import { fmtBRL, dateOfSale, todayStr, csvEscape, pixPortion, cardPortion, paymentLabel, paymentPillClass, isElevatedRole } from '../../utils.js';
 import { deleteSaleAPI, refreshSales, saveGoalConfig } from './sales-data.js';
 import { startEdit } from './sales-form.js';
 
@@ -14,9 +14,9 @@ export function filteredSales(){
 
 export function renderRecent(){
   const tbody = document.getElementById('recentTableBody');
-  const base = (state.currentRole && state.currentRole !== 'admin')
-    ? state.sales.filter(s=>s.seller===state.currentUser)
-    : state.sales;
+  const base = isElevatedRole(state.currentRole)
+    ? state.sales
+    : state.sales.filter(s=>s.seller===state.currentUser);
   const list = [...base].sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp)).slice(0,8);
   tbody.innerHTML = '';
   if(list.length===0){
@@ -50,12 +50,21 @@ export function renderDashboard(){
   const pct = Math.min(100, (total/state.goalValue)*100 || 0);
   document.getElementById('goalFill').style.width = pct + '%';
 
-  // vendedoras
-  const sellers = ['Gabriela','Larissa'];
-  const colors = {Gabriela:'#cba869', Larissa:'#b98fa0'};
+  // vendedoras — calculadas a partir de quem realmente tem venda no período
+  // filtrado (não uma lista fixa), assim reflete qualquer vendedora nova ou
+  // já removida sem precisar tocar em código.
+  const sellerColorPalette = ['#cba869','#b98fa0','#6fa89a','#8a7550','#a8834f','#2c8f7a','#c98f6a','#7a8fa8'];
+  const sellerNames = [...new Set(list.map(s=>s.seller))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  const colors = {};
+  sellerNames.forEach((name,i)=>{ colors[name] = sellerColorPalette[i % sellerColorPalette.length]; });
+
+  const sellers = sellerNames;
   const sellerGrid = document.getElementById('sellerGrid');
   sellerGrid.innerHTML = '';
   const sellerTotals = {};
+  if(sellers.length === 0){
+    sellerGrid.innerHTML = '<div class="empty-row">Nenhuma venda registrada nesse período</div>';
+  }
   sellers.forEach(name=>{
     const sList = list.filter(s=>s.seller===name);
     const sTotal = sList.reduce((a,s)=>a+s.amount,0);

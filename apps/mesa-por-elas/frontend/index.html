@@ -19,11 +19,11 @@
     <form class="login-form" id="loginForm">
       <div class="field">
         <label>Usuário</label>
-        <input type="text" id="loginUser" autocomplete="username" placeholder="Seu usuário">
+        <input type="text" id="loginUser" autocomplete="username" placeholder="Login">
       </div>
       <div class="field">
         <label>Senha</label>
-        <input type="password" id="loginPass" autocomplete="current-password" placeholder="Sua senha">
+        <input type="password" id="loginPass" autocomplete="current-password" placeholder="Senha">
       </div>
       <button type="submit" class="submit-btn" id="loginBtn" style="width:100%;">Entrar</button>
     </form>
@@ -54,6 +54,14 @@
         </svg> Vendas</button>
       <button data-tab="venda" data-label="Nova Venda">
         <span class="tab-icon">＋</span> Nova Venda
+      </button>
+      <button data-tab="usuarios" data-label="Usuários">
+        <svg class="tab-icon" width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <circle cx="5.5" cy="5" r="2.3" stroke="currentColor" stroke-width="1.2"/>
+          <path d="M1.3 13.2c0-2.4 1.9-4 4.2-4s4.2 1.6 4.2 4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" fill="none"/>
+          <circle cx="11.2" cy="5.6" r="1.8" stroke="currentColor" stroke-width="1.1"/>
+          <path d="M9.6 9.6c1.9-.3 3.9.9 4.1 3.1" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" fill="none"/>
+        </svg> Usuários
       </button>
     </nav>
 
@@ -145,10 +153,7 @@
   <section class="view" id="view-vendas">
 
     <div class="topbar-row">
-      <div class="content-topbar">
-        <div class="page-title">Vendas</div>
-        <div class="sub">Todas as vendas registradas do evento</div>
-      </div>
+      <div class="sub" style="margin:0;">Todas as vendas registradas do evento</div>
       <div class="sort-wrap">
         <button id="btnSortMenu" class="sort-trigger">Ordenar por: <span id="sortLabel">Data ↓</span> <span class="chevron">▾</span></button>
         <div id="sortMenu" class="sort-menu"></div>
@@ -177,11 +182,13 @@
         <div class="field">
           <label>CPF</label>
           <input type="text" id="fCpf" placeholder="000.000.000-00" inputmode="numeric">
+          <span class="field-error" id="fCpfError"></span>
         </div>
       </div>
       <div class="field">
-        <label>E-mail</label>
+        <label>E-mail <span style="color:var(--muted);font-weight:400;">(opcional)</span></label>
         <input type="email" id="fEmail" placeholder="cliente@email.com">
+        <span class="field-error" id="fEmailError"></span>
       </div>
       <div class="field">
         <label class="split-toggle-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500;color:var(--ivory);">
@@ -228,9 +235,9 @@
         </div>
       </div>
 
-      <div class="field">
+      <div class="field" id="sellerFieldWrap">
         <label>Vendedora</label>
-        <div class="choice-group" id="sellerGroup"></div>
+        <select id="sellerSelect"></select>
       </div>
 
       <button class="submit-btn" id="submitBtn">Registrar venda</button>
@@ -247,6 +254,50 @@
       </table>
       </div>
     </div>
+  </section>
+
+  <!-- USUÁRIOS (admin) -->
+  <section class="view" id="view-usuarios">
+
+    <div class="topbar-row">
+      <div class="sub" style="margin:0;">Contas com acesso ao sistema</div>
+      <button class="btn-outline" id="btnNewUser" style="width:auto;padding:9px 16px;">+ Novo usuário</button>
+    </div>
+
+    <div class="form-card" id="userFormCard" style="display:none;margin-bottom:22px;max-width:100%;">
+      <h2 id="userFormTitle">Novo usuário</h2>
+      <div class="hint" id="userFormHint">Preencha os dados de acesso</div>
+
+      <div class="field">
+        <label>Nome completo</label>
+        <input type="text" id="uName" placeholder="Nome da pessoa">
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>E-mail</label>
+          <input type="email" id="uEmail" placeholder="email@exemplo.com">
+        </div>
+        <div class="field">
+          <label>Login</label>
+          <input type="text" id="uLogin" placeholder="usuario.login" autocomplete="off">
+        </div>
+      </div>
+      <div class="field">
+        <label id="uPasswordLabel">Senha</label>
+        <input type="password" id="uPassword" placeholder="Senha de acesso" autocomplete="new-password">
+      </div>
+      <div class="field">
+        <label>Função</label>
+        <div class="choice-group" id="roleGroup"></div>
+      </div>
+
+      <button class="submit-btn" id="userSubmitBtn">Salvar usuário</button>
+      <button class="btn-outline" id="userCancelBtn" style="margin-top:8px;">Cancelar</button>
+      <div class="form-msg" id="userFormMsg"></div>
+    </div>
+
+    <div class="sales-list" id="usersListContainer"></div>
+
   </section>
 
   <footer class="appfoot">A Mesa por Elas — controle interno de vendas do evento</footer>
