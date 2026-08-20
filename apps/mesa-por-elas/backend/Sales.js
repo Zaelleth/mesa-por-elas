@@ -2,16 +2,15 @@
  * Sales.js — Leitura e escrita da aba "sales".
  *
  * Schema (snake_case, já pensado para uma futura migração para banco real):
- *   sale_id | customer_id | amount | payment_method | seller_id | created_at
- *   | pix_amount | card_amount | card_type
+ *   sale_id | customer_id | saleitem_id | amount | payment_method
+ *   | seller_id | created_at | pix_amount | card_amount | card_type
  *
- * customer_id e seller_id são FOREIGN KEYS (para customers.customer_id e
- * users.user_id). A venda não guarda mais nome/telefone/CPF/e-mail da
- * cliente nem login/nome de quem vendeu — só os dois números. Todo dado de
- * exibição é resolvido na hora, buscando nas abas customers e users (ver
- * getCustomerLookupMap() e getUserLookupMap()). Corrigir o telefone de uma
- * cliente, por exemplo, atualiza automaticamente TODO o histórico de vendas
- * dela, sem reescrever nenhuma linha antiga.
+ * customer_id, saleitem_id e seller_id são FOREIGN KEYS (para
+ * customers.customer_id, saleitems.saleitem_id e users.user_id). A venda
+ * não guarda nome/telefone/CPF/e-mail da cliente, nome do item vendido nem
+ * login/nome de quem vendeu — só os três números. Todo dado de exibição é
+ * resolvido na hora, buscando nas abas customers, saleitems e users (ver
+ * getCustomerLookupMap(), getSaleItemLookupMap() e getUserLookupMap()).
  *
  * Regra de preenchimento das colunas de divisão de pagamento: só a coluna
  * do meio efetivamente usado é preenchida — a outra fica em BRANCO (não
@@ -21,18 +20,18 @@
  *   payment_method = 'debito'/'credito' → pix_amount = '', card_amount = valor
  *   payment_method = 'misto'            → os dois preenchidos com a parte de cada um
  *
- * Importante sobre o formato devolvido ao frontend: apesar do schema novo,
- * o objeto devolvido continua tendo os MESMOS nomes de sempre — name, phone,
- * cpf, email, seller, sellerName — só que agora resolvidos via FK em vez de
- * copiados direto da planilha. Isso evita ter que tocar em telas que só
- * exibem esses campos.
+ * Importante sobre o formato devolvido ao frontend: apesar do schema com
+ * FKs, o objeto devolvido continua tendo os mesmos nomes de sempre (name,
+ * phone, cpf, email, seller, sellerName) — só que agora resolvidos via
+ * lookup em vez de copiados direto da planilha. Novos campos itemId/
+ * itemName seguem o mesmo padrão de sellerName.
  */
 
 const SHEET_SALES = 'sales';
 
 const SALES_HEADERS = [
-  'sale_id', 'customer_id', 'amount', 'payment_method', 'seller_id',
-  'created_at', 'pix_amount', 'card_amount', 'card_type'
+  'sale_id', 'customer_id', 'saleitem_id', 'amount', 'payment_method',
+  'seller_id', 'created_at', 'pix_amount', 'card_amount', 'card_type'
 ];
 
 function getSalesSheet() {
@@ -49,14 +48,16 @@ function readSales() {
   // é o "índice" manual que substitui o JOIN que o Sheets não tem.
   const userMap = getUserLookupMap();
   const customerMap = getCustomerLookupMap();
+  const itemMap = getSaleItemLookupMap();
 
   return values
     .filter(function (r) { return r[0]; }) // ignora linhas totalmente vazias
     .map(function (r) {
-      const amount = Number(r[2]);
-      const payment = r[3];
-      const sellerInfo = userMap[String(r[4])];
+      const amount = Number(r[3]);
+      const payment = r[4];
+      const sellerInfo = userMap[String(r[5])];
       const customerInfo = customerMap[String(r[1])];
+      const itemInfo = itemMap[String(r[2])];
 
       let pixAmount = 0, cardAmount = 0, cardType = null;
       if (payment === 'pix') {
@@ -65,9 +66,9 @@ function readSales() {
         cardAmount = amount;
         cardType = payment;
       } else if (payment === 'misto') {
-        pixAmount = r[6] !== '' ? Number(r[6]) : 0;
-        cardAmount = r[7] !== '' ? Number(r[7]) : 0;
-        cardType = r[8] || null;
+        pixAmount = r[7] !== '' ? Number(r[7]) : 0;
+        cardAmount = r[8] !== '' ? Number(r[8]) : 0;
+        cardType = r[9] || null;
       }
 
       return {
@@ -76,11 +77,13 @@ function readSales() {
         phone: customerInfo ? customerInfo.phone : '',
         cpf: customerInfo ? customerInfo.cpf : '',
         email: customerInfo ? customerInfo.email : '',
+        itemId: String(r[2]),
+        itemName: itemInfo ? itemInfo.name : '(item removido)',
         amount: amount,
         payment: payment,
         seller: sellerInfo ? sellerInfo.login : null,
         sellerName: sellerInfo ? sellerInfo.name : '(vendedora removida)',
-        timestamp: r[5] instanceof Date ? r[5].toISOString() : r[5],
+        timestamp: r[6] instanceof Date ? r[6].toISOString() : r[6],
         pixAmount: pixAmount,
         cardAmount: cardAmount,
         cardType: cardType
@@ -88,7 +91,7 @@ function readSales() {
     });
 }
 
-/** Próximo sale_id sequencial (1, 2, 3...), mesma lógica usada em Users.js/Customers.js. */
+/** Próximo sale_id sequencial (1, 2, 3...), mesma lógica usada em Users.js/Customers.js/SaleItems.js. */
 function getNextSaleId(sheet) {
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return 1;
@@ -120,6 +123,10 @@ function addSale(sale) {
   if (!sellerInfo) {
     return { ok: false, error: 'Vendedora não encontrada. Atualize a lista e tente novamente.' };
   }
+  const itemInfo = getSaleItemById(sale.itemId);
+  if (!itemInfo) {
+    return { ok: false, error: 'Item de venda não encontrado. Atualize a lista e tente novamente.' };
+  }
   const customerResult = resolveCustomerForSale({ name: sale.name, phone: sale.phone, cpf: sale.cpf, email: sale.email });
   if (!customerResult.ok) return customerResult;
 
@@ -128,16 +135,28 @@ function addSale(sale) {
   const timestamp = new Date().toISOString();
   const split = buildSplitColumns(sale.payment, sale.amount, sale.pixAmount, sale.cardAmount, sale.cardType);
   sheet.appendRow([
-    id, customerResult.customerId, Number(sale.amount), sale.payment, sellerInfo.id,
+    id, customerResult.customerId, itemInfo.id, Number(sale.amount), sale.payment, sellerInfo.id,
     timestamp, split.pix, split.card, split.cardType
   ]);
   SpreadsheetApp.flush();
+
+  // Se o item vendido é a assinatura do Club, cria (ou reativa, preservando
+  // o tempo de casa original) a assinatura dessa cliente, e já registra o
+  // mês da venda como pago — é a venda em si que representa a confirmação
+  // do pagamento fora do sistema.
+  if (isClubSubscriptionItemName(itemInfo.name)) {
+    const subResult = upsertClubSubscription(customerResult.customerId, Number(sale.amount), sale.payment, timestamp);
+    recordSubscriptionSalePayment(subResult.id, Number(sale.amount), timestamp);
+  }
+
   return {
     ok: true,
     sale: Object.assign({ id: String(id), timestamp: timestamp }, sale, {
       amount: Number(sale.amount),
       seller: sellerInfo.login,
       sellerName: sellerInfo.name,
+      itemId: String(itemInfo.id),
+      itemName: itemInfo.name,
       pixAmount: split.pix === '' ? 0 : split.pix,
       cardAmount: split.card === '' ? 0 : split.card
     })
@@ -159,6 +178,10 @@ function updateSale(id, sale) {
   if (!sellerInfo) {
     return { ok: false, error: 'Vendedora não encontrada. Atualize a lista e tente novamente.' };
   }
+  const itemInfo = getSaleItemById(sale.itemId);
+  if (!itemInfo) {
+    return { ok: false, error: 'Item de venda não encontrado. Atualize a lista e tente novamente.' };
+  }
   const customerResult = resolveCustomerForSale({ name: sale.name, phone: sale.phone, cpf: sale.cpf, email: sale.email });
   if (!customerResult.ok) return customerResult;
 
@@ -166,16 +189,16 @@ function updateSale(id, sale) {
   const row = findRowIndexById(sheet, id);
   if (row === -1) return { ok: false, error: 'Venda não encontrada (pode já ter sido alterada por outra pessoa).' };
 
-  // Colunas B–E (customer_id, amount, payment_method, seller_id) — a coluna
-  // F (created_at) não é sobrescrita na edição.
-  sheet.getRange(row, 2, 1, 4).setValues([[
-    customerResult.customerId, Number(sale.amount), sale.payment, sellerInfo.id
+  // Colunas B–F (customer_id, saleitem_id, amount, payment_method, seller_id)
+  // — a coluna G (created_at) não é sobrescrita na edição.
+  sheet.getRange(row, 2, 1, 5).setValues([[
+    customerResult.customerId, itemInfo.id, Number(sale.amount), sale.payment, sellerInfo.id
   ]]);
-  // Colunas G–I (pix_amount, card_amount, card_type)
+  // Colunas H–J (pix_amount, card_amount, card_type)
   const split = buildSplitColumns(sale.payment, sale.amount, sale.pixAmount, sale.cardAmount, sale.cardType);
-  sheet.getRange(row, 7, 1, 3).setValues([[ split.pix, split.card, split.cardType ]]);
+  sheet.getRange(row, 8, 1, 3).setValues([[ split.pix, split.card, split.cardType ]]);
   SpreadsheetApp.flush();
-  return { ok: true, sellerName: sellerInfo.name };
+  return { ok: true, sellerName: sellerInfo.name, itemName: itemInfo.name };
 }
 
 function deleteSale(id) {
@@ -192,6 +215,6 @@ function sellerHasSales(userId) {
   const sheet = getSalesSheet();
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return false;
-  const ids = sheet.getRange(2, 5, lastRow - 1, 1).getValues(); // coluna E = seller_id
+  const ids = sheet.getRange(2, 6, lastRow - 1, 1).getValues(); // coluna F = seller_id
   return ids.some(function (r) { return String(r[0]) === String(userId); });
 }

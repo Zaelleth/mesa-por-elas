@@ -6,6 +6,10 @@
  *   Auth.js      → login, sessões, controle de acesso
  *   Users.js     → CRUD do cadastro de usuários (aba "users")
  *   Customers.js → CRUD de clientes (aba "customers")
+ *   SaleItems.js → CRUD de itens de venda (aba "saleitems")
+ *   ClubSubscriptions.js → assinaturas do Club (aba "club_subscriptions")
+ *   ClubPayments.js      → cobranças mensais do Club (aba "club_payments")
+ *   ClubEvents.js        → calendário de encontros do Club (aba "club_events")
  *   Sales.js     → CRUD de vendas (aba "sales")
  *   Settings.js  → configurações (aba "settings")
  *   Setup.js     → criação inicial e migrações de planilha
@@ -34,12 +38,26 @@ function doGet(e) {
     // Tela de Clientes é visível para todo mundo (admin, gestor e
     // vendedora) — sem gate extra além de ter uma sessão válida.
     if (action === 'getCustomers') return jsonOut({ ok: true, customers: readCustomers() });
+    // A LISTAGEM de itens é aberta a qualquer sessão (a vendedora precisa
+    // dela pra escolher o item na hora de registrar uma venda). Gerenciar
+    // (criar/editar/inativar) é restrito — ver os gates no doPost.
+    if (action === 'getSaleItems') return jsonOut({ ok: true, items: readSaleItems() });
     if (action === 'getUsers') {
       if (!isAdminOrGestorSession(e.parameter.token)) {
         return jsonOut({ ok: false, error: 'Acesso restrito a administradores e gestores.' });
       }
       return jsonOut({ ok: true, users: readUsers() });
     }
+    if (action === 'getClubSubscriptions') return jsonOut({ ok: true, subscriptions: readClubSubscriptions() });
+    if (action === 'getClubPayments') {
+      // Checagem oportunista: gera qualquer cobrança futura que devesse
+      // existir e ainda não existe — rede de segurança caso o gatilho
+      // mensal automático (ver Setup.js) não esteja instalado ou tenha
+      // falhado. Barato de rodar: só grava o que realmente falta.
+      generateUpcomingClubPayments(3);
+      return jsonOut({ ok: true, payments: readClubPayments() });
+    }
+    if (action === 'getClubEvents') return jsonOut({ ok: true, events: readClubEvents() });
     return jsonOut({ ok: false, error: 'Ação GET desconhecida.' });
   } catch (err) {
     return jsonOut({ ok: false, error: String(err) });
@@ -86,6 +104,30 @@ function doPost(e) {
     if (action === 'addCustomer') return jsonOut(addCustomer(body.customer));
     if (action === 'updateCustomer') return jsonOut(updateCustomer(body.id, body.customer));
 
+    // Itens de venda: gerenciar (criar/editar/inativar) é restrito a
+    // admin e gestor — igual não existe exclusão pelo app, só pela planilha.
+    if (action === 'addSaleItem') {
+      const session = getSessionData(body.token);
+      if (!session || (session.role !== 'admin' && session.role !== 'gestor')) {
+        return jsonOut({ ok: false, error: 'Acesso restrito a administradores e gestores.' });
+      }
+      return jsonOut(addSaleItem(body.item));
+    }
+    if (action === 'updateSaleItem') {
+      const session = getSessionData(body.token);
+      if (!session || (session.role !== 'admin' && session.role !== 'gestor')) {
+        return jsonOut({ ok: false, error: 'Acesso restrito a administradores e gestores.' });
+      }
+      return jsonOut(updateSaleItem(body.id, body.item));
+    }
+    if (action === 'setSaleItemActive') {
+      const session = getSessionData(body.token);
+      if (!session || (session.role !== 'admin' && session.role !== 'gestor')) {
+        return jsonOut({ ok: false, error: 'Acesso restrito a administradores e gestores.' });
+      }
+      return jsonOut(setSaleItemActive(body.id, body.active));
+    }
+
     if (action === 'addUser') {
       const session = getSessionData(body.token);
       if (!session || (session.role !== 'admin' && session.role !== 'gestor')) {
@@ -113,6 +155,45 @@ function doPost(e) {
         return jsonOut({ ok: false, error: 'Acesso restrito a administradores e gestores.' });
       }
       return jsonOut(setUserActive(body.id, body.active, session.role, session.username));
+    }
+
+    // Club: assinaturas se criam/reativam sozinhas via venda (ver Sales.js).
+    // As ações abaixo são só gestão manual — cancelar, marcar pago, e o
+    // CRUD do calendário de encontros — todas restritas a admin/gestor.
+    if (action === 'cancelClubSubscription') {
+      const session = getSessionData(body.token);
+      if (!session || (session.role !== 'admin' && session.role !== 'gestor')) {
+        return jsonOut({ ok: false, error: 'Acesso restrito a administradores e gestores.' });
+      }
+      return jsonOut(cancelClubSubscription(body.id));
+    }
+    if (action === 'markClubPaymentPaid') {
+      const session = getSessionData(body.token);
+      if (!session || (session.role !== 'admin' && session.role !== 'gestor')) {
+        return jsonOut({ ok: false, error: 'Acesso restrito a administradores e gestores.' });
+      }
+      return jsonOut(markClubPaymentPaid(body.id));
+    }
+    if (action === 'addClubEvent') {
+      const session = getSessionData(body.token);
+      if (!session || (session.role !== 'admin' && session.role !== 'gestor')) {
+        return jsonOut({ ok: false, error: 'Acesso restrito a administradores e gestores.' });
+      }
+      return jsonOut(addClubEvent(body.event));
+    }
+    if (action === 'updateClubEvent') {
+      const session = getSessionData(body.token);
+      if (!session || (session.role !== 'admin' && session.role !== 'gestor')) {
+        return jsonOut({ ok: false, error: 'Acesso restrito a administradores e gestores.' });
+      }
+      return jsonOut(updateClubEvent(body.id, body.event));
+    }
+    if (action === 'deleteClubEvent') {
+      const session = getSessionData(body.token);
+      if (!session || (session.role !== 'admin' && session.role !== 'gestor')) {
+        return jsonOut({ ok: false, error: 'Acesso restrito a administradores e gestores.' });
+      }
+      return jsonOut(deleteClubEvent(body.id));
     }
 
     return jsonOut({ ok: false, error: 'Ação POST desconhecida.' });

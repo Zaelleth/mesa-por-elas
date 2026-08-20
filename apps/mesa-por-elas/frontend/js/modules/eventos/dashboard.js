@@ -20,12 +20,12 @@ export function renderRecent(){
   const list = [...base].sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp)).slice(0,8);
   tbody.innerHTML = '';
   if(list.length===0){
-    tbody.innerHTML = '<tr><td colspan="4" class="empty-row">Nenhuma venda ainda</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" class="empty-row">Nenhuma venda ainda</td></tr>';
     return;
   }
   list.forEach(s=>{
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${s.name}</td><td>${s.sellerName}</td><td><span class="pill ${paymentPillClass(s)}">${paymentLabel(s)}</span></td><td>R$ ${fmtBRL(s.amount)}</td>`;
+    tr.innerHTML = `<td>${s.name}</td><td>${s.itemName}</td><td>${s.sellerName}</td><td><span class="pill ${paymentPillClass(s)}">${paymentLabel(s)}</span></td><td>R$ ${fmtBRL(s.amount)}</td>`;
     tbody.appendChild(tr);
   });
 }
@@ -87,11 +87,38 @@ export function renderDashboard(){
     sellerGrid.appendChild(card);
   });
 
+  // vendas por item — mesmo padrão: calculado a partir de quem realmente
+  // aparece no período filtrado, lado a lado pra comparação direta.
+  const itemColorPalette = ['#cba869','#6fa89a','#b98fa0','#8a7550','#a8834f'];
+  const itemIds = [...new Set(list.map(s=>s.itemId))].sort((a,b)=>{
+    const nameA = list.find(s=>s.itemId===a).itemName;
+    const nameB = list.find(s=>s.itemId===b).itemName;
+    return nameA.localeCompare(nameB,'pt-BR');
+  });
+  const itemGrid = document.getElementById('itemGrid');
+  itemGrid.innerHTML = '';
+  if(itemIds.length === 0){
+    itemGrid.innerHTML = '<div class="empty-row">Nenhuma venda registrada nesse período</div>';
+  }
+  itemIds.forEach((itemId,i)=>{
+    const iList = list.filter(s=>s.itemId===itemId);
+    const iTotal = iList.reduce((a,s)=>a+s.amount,0);
+    const displayName = iList[0].itemName;
+    const card = document.createElement('div');
+    card.className = 'seller-card';
+    card.innerHTML = `<div>
+        <div class="name"><span class="dot" style="background:${itemColorPalette[i % itemColorPalette.length]}"></span>${displayName}</div>
+        <div class="count">${iList.length} ${iList.length===1?'venda':'vendas'}</div>
+      </div>
+      <div class="amount">R$ ${fmtBRL(iTotal)}</div>`;
+    itemGrid.appendChild(card);
+  });
+
   // tabela de vendas
   const tbody = document.getElementById('salesTableBody');
   tbody.innerHTML = '';
   if(list.length===0){
-    tbody.innerHTML = '<tr><td colspan="6" class="empty-row">Nenhuma venda registrada ainda</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-row">Nenhuma venda registrada ainda</td></tr>';
   }else{
     [...list].sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp)).forEach(s=>{
       const tr = document.createElement('tr');
@@ -99,7 +126,7 @@ export function renderDashboard(){
         ? ` title="Pix: R$ ${fmtBRL(pixPortion(s))} · Cartão: R$ ${fmtBRL(cardPortion(s))}"`
         : '';
       const time = new Date(s.timestamp).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-      tr.innerHTML = `<td>${s.name}</td><td>${s.sellerName}</td><td><span class="pill ${paymentPillClass(s)}"${pillTitle}>${paymentLabel(s)}</span></td>
+      tr.innerHTML = `<td>${s.name}</td><td>${s.itemName}</td><td>${s.sellerName}</td><td><span class="pill ${paymentPillClass(s)}"${pillTitle}>${paymentLabel(s)}</span></td>
         <td>R$ ${fmtBRL(s.amount)}</td><td>${time}</td>
         <td><button class="edit-btn" data-id="${s.id}" title="Editar">✎</button> <button class="del-btn" data-id="${s.id}" title="Excluir">✕</button></td>`;
       tbody.appendChild(tr);
@@ -182,13 +209,13 @@ function exportCSV(){
     alert('Não há vendas para exportar nesse período.');
     return;
   }
-  const headers = ['Nome completo','Telefone','E-mail','CPF','Valor total (R$)','Valor Pix (R$)','Valor Cartão (R$)','Forma de pagamento','Vendedora','Data','Hora'];
+  const headers = ['Nome completo','Telefone','E-mail','CPF','Item vendido','Valor total (R$)','Valor Pix (R$)','Valor Cartão (R$)','Forma de pagamento','Vendedora','Data','Hora'];
   const rows = list.map(s=>{
     const d = new Date(s.timestamp);
     const dateStr = d.toLocaleDateString('pt-BR');
     const timeStr = d.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
     return [
-      s.name, s.phone, s.email, s.cpf,
+      s.name, s.phone, s.email, s.cpf, s.itemName,
       s.amount.toFixed(2).replace('.',','),
       pixPortion(s).toFixed(2).replace('.',','),
       cardPortion(s).toFixed(2).replace('.',','),

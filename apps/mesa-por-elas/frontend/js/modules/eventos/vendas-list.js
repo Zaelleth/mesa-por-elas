@@ -73,7 +73,7 @@ export function renderVendasList(){
       <div class="sale-row-main">
         <div class="sale-row-name">${s.name}</div>
         <div class="sale-row-meta">
-          ${s.sellerName} &middot; <span class="pill ${paymentPillClass(s)}">${paymentLabel(s)}</span> &middot; ${dateStr} ${timeStr}
+          ${s.itemName} &middot; ${s.sellerName} &middot; <span class="pill ${paymentPillClass(s)}">${paymentLabel(s)}</span> &middot; ${dateStr} ${timeStr}
         </div>
       </div>
       <div class="sale-row-actions">

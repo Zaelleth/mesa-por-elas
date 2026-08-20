@@ -11,6 +11,7 @@ import { addSaleAPI, updateSaleAPI } from './sales-data.js';
 import { populateSellerGroup } from '../../auth.js';
 import { confirmModal } from '../../modal.js';
 import { fetchCustomers } from '../customers.js';
+import { populateItemSelect, getSelectedItemPrice } from '../saleitems.js';
 
 function toggleSplitPaymentBlocks(isSplit){
   document.getElementById('singlePaymentBlock').style.display = isSplit ? 'none' : '';
@@ -61,6 +62,7 @@ export function startEdit(id){
   document.getElementById('fCpf').value = sale.cpf;
   document.getElementById('fEmail').value = sale.email;
   populateSellerGroup(sale.seller);
+  populateItemSelect(sale.itemId);
 
   if(sale.payment === 'misto'){
     document.getElementById('fSplitPayment').checked = true;
@@ -105,6 +107,10 @@ export function resetForm(){
   document.getElementById('submitBtn').textContent = 'Registrar venda';
   document.getElementById('cancelEditBtn').style.display = 'none';
   populateSellerGroup();
+  populateItemSelect();
+  if(!document.getElementById('fSplitPayment').checked){
+    document.getElementById('fAmount').value = getSelectedItemPrice();
+  }
 }
 
 /** Liga todos os listeners do formulário de venda (máscaras, escolhas, envio). */
@@ -123,6 +129,16 @@ export function initSalesFormListeners(){
   });
   document.getElementById('sellerSelect').addEventListener('change', e=>{
     state.selectedSeller = e.target.value;
+  });
+
+  // Ao escolher o item vendido, pré-preenche o valor da venda com o preço
+  // sugerido dele — mas só no modo de pagamento único; no modo dividido,
+  // quem decide como o valor se reparte é a pessoa, não o item.
+  document.getElementById('itemSelect').addEventListener('change', e=>{
+    state.selectedItemId = e.target.value;
+    if(!document.getElementById('fSplitPayment').checked){
+      document.getElementById('fAmount').value = getSelectedItemPrice();
+    }
   });
 
   // Autopreenchimento: ao terminar de digitar o nome completo (perder o
@@ -201,8 +217,8 @@ export function initSalesFormListeners(){
     clearFieldError('fCpf');
     clearFieldError('fEmail');
 
-    if(!name || !phone || !cpf || !state.selectedSeller){
-      msg.textContent = 'Preencha nome completo, telefone, CPF e vendedora.';
+    if(!name || !phone || !cpf || !state.selectedSeller || !state.selectedItemId){
+      msg.textContent = 'Preencha nome completo, telefone, CPF, o item vendido e a vendedora.';
       msg.className = 'form-msg err';
       return;
     }
@@ -284,13 +300,13 @@ export function initSalesFormListeners(){
     submitBtn.disabled = true;
     submitBtn.textContent = 'Salvando…';
 
-    const saleFields = { name, phone, cpf, email, amount, payment, cardType, pixAmount, cardAmount, seller: state.selectedSeller };
+    const saleFields = { name, phone, cpf, email, amount, payment, cardType, pixAmount, cardAmount, seller: state.selectedSeller, itemId: state.selectedItemId };
 
     if(state.editingId){
       try{
         const res = await updateSaleAPI(state.editingId, saleFields);
         const idx = state.sales.findIndex(s=>s.id===state.editingId);
-        if(idx !== -1) state.sales[idx] = { ...state.sales[idx], ...saleFields, sellerName: res.sellerName };
+        if(idx !== -1) state.sales[idx] = { ...state.sales[idx], ...saleFields, sellerName: res.sellerName, itemName: res.itemName };
         await fetchCustomers(); // reflete telefone/e-mail que o backend possa ter atualizado
       }catch(err){
         msg.textContent = 'Não foi possível salvar. Verifique sua conexão e tente novamente.';

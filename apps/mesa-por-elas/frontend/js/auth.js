@@ -71,6 +71,7 @@ export function applyRolePermissions(){
   const elevated = isElevatedRole(state.currentRole); // admin ou gestor
   document.querySelector('nav.tabs button[data-tab="dashboard"]').style.display = elevated ? '' : 'none';
   document.querySelector('nav.tabs button[data-tab="usuarios"]').style.display = elevated ? '' : 'none';
+  document.querySelector('nav.tabs button[data-tab="itens"]').style.display = elevated ? '' : 'none';
   document.querySelector('nav.tabs button[data-tab="venda"]').style.display = '';
   document.getElementById('view-dashboard').classList.remove('active');
   document.getElementById('view-venda').classList.remove('active');

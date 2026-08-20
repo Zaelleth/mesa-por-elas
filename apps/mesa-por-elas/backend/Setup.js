@@ -26,6 +26,36 @@ function setupSheets() {
     customers.setFrozenRows(1);
   }
 
+  let saleitems = ss.getSheetByName(SHEET_SALEITEMS);
+  if (!saleitems) saleitems = ss.insertSheet(SHEET_SALEITEMS);
+  if (saleitems.getLastRow() === 0) {
+    saleitems.appendRow(SALEITEMS_HEADERS);
+    saleitems.appendRow([1, 'Ingresso Mesa por Elas', 0, true, new Date().toISOString()]);
+    saleitems.appendRow([2, 'Assinatura Club', 0, true, new Date().toISOString()]);
+    saleitems.setFrozenRows(1);
+  }
+
+  let clubSubscriptions = ss.getSheetByName(SHEET_CLUB_SUBSCRIPTIONS);
+  if (!clubSubscriptions) clubSubscriptions = ss.insertSheet(SHEET_CLUB_SUBSCRIPTIONS);
+  if (clubSubscriptions.getLastRow() === 0) {
+    clubSubscriptions.appendRow(CLUB_SUBSCRIPTIONS_HEADERS);
+    clubSubscriptions.setFrozenRows(1);
+  }
+
+  let clubPayments = ss.getSheetByName(SHEET_CLUB_PAYMENTS);
+  if (!clubPayments) clubPayments = ss.insertSheet(SHEET_CLUB_PAYMENTS);
+  if (clubPayments.getLastRow() === 0) {
+    clubPayments.appendRow(CLUB_PAYMENTS_HEADERS);
+    clubPayments.setFrozenRows(1);
+  }
+
+  let clubEvents = ss.getSheetByName(SHEET_CLUB_EVENTS);
+  if (!clubEvents) clubEvents = ss.insertSheet(SHEET_CLUB_EVENTS);
+  if (clubEvents.getLastRow() === 0) {
+    clubEvents.appendRow(CLUB_EVENTS_HEADERS);
+    clubEvents.setFrozenRows(1);
+  }
+
   let settings = ss.getSheetByName(SHEET_SETTINGS);
   if (!settings) settings = ss.insertSheet(SHEET_SETTINGS);
   if (settings.getLastRow() === 0) {
@@ -383,4 +413,136 @@ function migrateAddClubColumn() {
 
   SpreadsheetApp.flush();
   Logger.log('Coluna "club" adicionada à aba customers (todos marcados como não-Club).');
+}
+
+/**
+ * ⚠️ Rode esta função UMA VEZ depois de atualizar o código para a versão
+ * com itens de venda (saleitems). Ela, nessa ordem:
+ *   1. Cria a aba "saleitems" com o cabeçalho certo e os dois itens que já
+ *      existem hoje (Ingresso e Assinatura Club), se a aba ainda não existir.
+ *   2. Insere a coluna "saleitem_id" na aba "sales" (antes de "amount").
+ *
+ * IMPORTANTE: como o app não tinha noção de "item vendido" até agora, não
+ * existe como saber retroativamente qual item cada venda antiga representa.
+ * Toda venda já cadastrada é marcada com o item de ID 1 (Ingresso Mesa por
+ * Elas) por padrão — é a suposição mais razoável, já que o Club nem tinha
+ * fluxo de venda até este momento. Revise manualmente na planilha se algum
+ * caso específico precisar ser corrigido para "Assinatura Club" (ID 2).
+ *
+ * Preços de Ingresso e Assinatura Club nascem como 0 — edite os valores
+ * reais na aba saleitems (ou pela própria tela "Itens de Venda" no app)
+ * antes de publicar para o time.
+ *
+ * Segura de rodar mais de uma vez.
+ */
+function migrateAddSaleItemsSchema() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  let itemsSheet = ss.getSheetByName(SHEET_SALEITEMS);
+  if (!itemsSheet) {
+    itemsSheet = ss.insertSheet(SHEET_SALEITEMS);
+    itemsSheet.appendRow(SALEITEMS_HEADERS);
+    itemsSheet.appendRow([1, 'Ingresso Mesa por Elas', 0, true, new Date().toISOString()]);
+    itemsSheet.appendRow([2, 'Assinatura Club', 0, true, new Date().toISOString()]);
+    itemsSheet.setFrozenRows(1);
+    Logger.log('Aba "saleitems" criada com os itens padrão (preços zerados — edite antes de publicar).');
+  }
+
+  const salesSheet = ss.getSheetByName(SHEET_SALES);
+  if (!salesSheet) {
+    SpreadsheetApp.flush();
+    return;
+  }
+  const headers = salesSheet.getRange(1, 1, 1, Math.max(salesSheet.getLastColumn(), SALES_HEADERS.length)).getValues()[0];
+  if (headers[2] === 'saleitem_id') {
+    Logger.log('A aba "sales" já tem a coluna "saleitem_id" — nada a fazer.');
+    SpreadsheetApp.flush();
+    return;
+  }
+
+  salesSheet.insertColumnBefore(3); // insere antes da coluna C ("amount" hoje)
+  salesSheet.getRange(1, 3).setValue('saleitem_id');
+
+  const lastRow = salesSheet.getLastRow();
+  if (lastRow >= 2) {
+    const numRows = lastRow - 1;
+    const defaultItemId = 1; // Ingresso Mesa por Elas
+    const values = [];
+    for (let i = 0; i < numRows; i++) values.push([defaultItemId]);
+    salesSheet.getRange(2, 3, numRows, 1).setValues(values);
+    Logger.log(
+      'Coluna "saleitem_id" adicionada à aba sales. ' + numRows +
+      ' venda(s) já existente(s) marcada(s) com o item padrão (Ingresso Mesa por Elas, ID 1) — ' +
+      'revise manualmente se alguma dessas vendas era, na verdade, do Club.'
+    );
+  }
+
+  SpreadsheetApp.flush();
+  Logger.log('Migração de itens de venda concluída.');
+}
+
+/**
+ * ⚠️ Rode esta função UMA VEZ depois de atualizar o código para a versão
+ * com o Club (assinaturas, cobranças e calendário). Cria as 3 abas novas
+ * — club_subscriptions, club_payments, club_events — se ainda não
+ * existirem. Não apaga nenhum dado. Segura de rodar mais de uma vez.
+ */
+function migrateAddClubTables() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  let clubSubscriptions = ss.getSheetByName(SHEET_CLUB_SUBSCRIPTIONS);
+  if (!clubSubscriptions) {
+    clubSubscriptions = ss.insertSheet(SHEET_CLUB_SUBSCRIPTIONS);
+    clubSubscriptions.appendRow(CLUB_SUBSCRIPTIONS_HEADERS);
+    clubSubscriptions.setFrozenRows(1);
+    Logger.log('Aba "club_subscriptions" criada.');
+  }
+
+  let clubPayments = ss.getSheetByName(SHEET_CLUB_PAYMENTS);
+  if (!clubPayments) {
+    clubPayments = ss.insertSheet(SHEET_CLUB_PAYMENTS);
+    clubPayments.appendRow(CLUB_PAYMENTS_HEADERS);
+    clubPayments.setFrozenRows(1);
+    Logger.log('Aba "club_payments" criada.');
+  }
+
+  let clubEvents = ss.getSheetByName(SHEET_CLUB_EVENTS);
+  if (!clubEvents) {
+    clubEvents = ss.insertSheet(SHEET_CLUB_EVENTS);
+    clubEvents.appendRow(CLUB_EVENTS_HEADERS);
+    clubEvents.setFrozenRows(1);
+    Logger.log('Aba "club_events" criada.');
+  }
+
+  SpreadsheetApp.flush();
+  Logger.log('Migração das tabelas do Club concluída.');
+}
+
+/**
+ * ⚠️ Rode esta função UMA VEZ pra instalar o gatilho mensal automático que
+ * gera as próximas cobranças do Club sozinho, sem precisar de ninguém abrir
+ * o app (todo dia 1 de cada mês, às 3h da manhã). Sem isso, a geração de
+ * cobrança só acontece de forma "oportunista" — quando alguém abre a tela
+ * de Pagamentos do Club — o que funciona, mas depende de alguém acessar o
+ * app naquele mês. Segura de rodar de novo: remove qualquer gatilho antigo
+ * pra essa mesma função antes de criar um novo, então nunca duplica.
+ */
+function installClubPaymentsMonthlyTrigger() {
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'generateUpcomingClubPaymentsTriggered') {
+      ScriptApp.deleteTrigger(t);
+    }
+  });
+  ScriptApp.newTrigger('generateUpcomingClubPaymentsTriggered')
+    .timeBased()
+    .onMonthDay(1)
+    .atHour(3)
+    .create();
+  Logger.log('Gatilho mensal de cobranças do Club instalado (todo dia 1, às 3h da manhã).');
+}
+
+/** Função chamada pelo gatilho automático — não chame direto, é só o "corpo" do gatilho instalado acima. */
+function generateUpcomingClubPaymentsTriggered() {
+  const result = generateUpcomingClubPayments(3);
+  Logger.log('Gatilho mensal rodou: ' + result.generated + ' cobrança(s) nova(s) gerada(s).');
 }

@@ -5,17 +5,28 @@
     --line: #29292f;
     --gold: #cba869;
     --gold-soft: #8a7550;
+    --gold-rgb: 203,168,105;
     --rose: #b98fa0;
     --teal: #6fa89a;
     --ivory: #f2ede4;
     --muted: #948e83;
     --danger: #b06a6a;
   }
+
+  /* Paleta do Club — ativada via body.club-mode. Sobrescreve só --gold/
+     --gold-soft/--gold-rgb: como toda cor de destaque do app já usa essas
+     três variáveis (nunca mais um hex fixo, depois da limpeza acima), a
+     troca de tema inteira acontece aqui, sem tocar em nenhuma outra regra. */
+  body.club-mode{
+    --gold: #c1502e;
+    --gold-soft: #8a3820;
+    --gold-rgb: 193,80,46;
+  }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
   body{
     background:
-      radial-gradient(circle at 15% -10%, rgba(203,168,105,0.08), transparent 45%),
+      radial-gradient(circle at 15% -10%, rgba(var(--gold-rgb),0.08), transparent 45%),
       radial-gradient(circle at 90% 10%, rgba(185,143,160,0.06), transparent 40%),
       var(--bg);
     color:var(--ivory);
@@ -73,8 +84,8 @@
     position:relative;
   }
   nav.tabs button .tab-icon{font-size:14px; width:16px; text-align:center; opacity:.8;}
-  nav.tabs button:hover{color:var(--ivory); background:rgba(203,168,105,.07);}
-  nav.tabs button.active{color:var(--ivory); background:rgba(203,168,105,.1);}
+  nav.tabs button:hover{color:var(--ivory); background:rgba(var(--gold-rgb),.07);}
+  nav.tabs button.active{color:var(--ivory); background:rgba(var(--gold-rgb),.1);}
   nav.tabs button.active::before{
     content:''; position:absolute; left:0; top:10%; bottom:10%; width:3px;
     border-radius:2px;
@@ -91,7 +102,7 @@
     width:100%; background:none; border:1px solid var(--line); color:var(--muted);
     padding:9px 12px; border-radius:8px; cursor:pointer; font-size:12px; transition:.15s;
   }
-  .sidebar-footer button:hover{border-color:var(--gold-soft); color:var(--gold); background:rgba(203,168,105,.08);}
+  .sidebar-footer button:hover{border-color:var(--gold-soft); color:var(--gold); background:rgba(var(--gold-rgb),.08);}
 
   .main-content{
     flex:1;
@@ -140,8 +151,8 @@
     cursor:pointer; font-size:13px; font-family:'Inter',sans-serif; text-align:left;
     transition:.15s;
   }
-  .sort-option:hover{background:rgba(203,168,105,.07); color:var(--ivory);}
-  .sort-option.active{color:var(--gold); background:rgba(203,168,105,.08);}
+  .sort-option:hover{background:rgba(var(--gold-rgb),.07); color:var(--ivory);}
+  .sort-option.active{color:var(--gold); background:rgba(var(--gold-rgb),.08);}
   .sort-option .dir-arrow{font-size:12px; color:var(--gold);}
 
   .sales-list{display:flex; flex-direction:column; gap:1px; background:var(--line); border-radius:12px; overflow:hidden; border:1px solid var(--line);}
@@ -178,15 +189,15 @@
     background:none;border:1px solid var(--line);color:var(--muted);padding:7px 12px;border-radius:8px;
     cursor:pointer;font-size:12px;transition:.15s;
   }
-  .datebar button:hover{border-color:var(--gold-soft);color:var(--gold);background:rgba(203,168,105,.08);}
+  .datebar button:hover{border-color:var(--gold-soft);color:var(--gold);background:rgba(var(--gold-rgb),.08);}
   .datebar button#btnExport{border-color:var(--gold-soft);color:var(--gold);}
 
   /* Estado "ligado" persistente (como um interruptor) para Hoje/Tudo —
      diferente do hover, essa cor fica mesmo sem o mouse em cima. */
   .datebar button.toggled{
-    background:rgba(203,168,105,.16);border-color:var(--gold);color:var(--gold);font-weight:600;
+    background:rgba(var(--gold-rgb),.16);border-color:var(--gold);color:var(--gold);font-weight:600;
   }
-  .datebar button.toggled:hover{background:rgba(203,168,105,.24);}
+  .datebar button.toggled:hover{background:rgba(var(--gold-rgb),.24);}
 
   .stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px;}
   .stat-card{
@@ -195,7 +206,7 @@
   .stat-card .label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
   .stat-card .amount{font-family:'Playfair Display',serif;font-size:26px;color:var(--ivory);}
   .stat-card .sub{font-size:12px;color:var(--muted);margin-top:4px;}
-  .stat-card.gold{border-color:rgba(203,168,105,.35);}
+  .stat-card.gold{border-color:rgba(var(--gold-rgb),.35);}
   .stat-card.gold .amount{color:var(--gold);}
   .stat-card.rose .amount{color:var(--rose);}
   .stat-card.teal .amount{color:var(--teal);}
@@ -228,17 +239,27 @@
   table.sales-table tr:last-child td{border-bottom:none;}
   .pill{padding:3px 9px;border-radius:20px;font-size:11px;display:inline-block;}
   .pill.pix{background:rgba(111,168,154,.15);color:var(--teal);}
-  .pill.cartao{background:rgba(203,168,105,.15);color:var(--gold);}
-  .pill.misto{background:linear-gradient(90deg, rgba(111,168,154,.18), rgba(203,168,105,.18));color:var(--rose);}
-  .pill.admin{background:rgba(203,168,105,.15);color:var(--gold);}
+  .pill.cartao{background:rgba(var(--gold-rgb),.15);color:var(--gold);}
+  .pill.misto{background:linear-gradient(90deg, rgba(111,168,154,.18), rgba(var(--gold-rgb),.18));color:var(--rose);}
+  .pill.admin{background:rgba(var(--gold-rgb),.15);color:var(--gold);}
   .pill.gestor{background:rgba(185,143,160,.18);color:var(--rose);}
   .pill.vendedora{background:rgba(111,168,154,.15);color:var(--teal);}
   .pill.inactive{background:rgba(148,142,131,.15);color:var(--muted);}
-  .pill.club{background:linear-gradient(90deg, rgba(203,168,105,.22), rgba(185,143,160,.18));color:var(--gold);font-weight:600;}
+  .pill.club{background:linear-gradient(90deg, rgba(var(--gold-rgb),.22), rgba(185,143,160,.18));color:var(--gold);font-weight:600;}
+  .pill.pago{background:rgba(111,168,154,.15);color:var(--teal);}
+  .pill.pendente{background:rgba(var(--gold-rgb),.15);color:var(--gold);}
+  .pill.atrasado{background:rgba(176,106,106,.15);color:var(--danger);}
+  .pill.cancelado{background:rgba(148,142,131,.15);color:var(--muted);}
+  .rank-badge{
+    display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;
+    border-radius:50%;background:rgba(var(--gold-rgb),.18);color:var(--gold);
+    font-size:14px;font-weight:700;margin-right:10px;flex-shrink:0;
+    font-family:'Playfair Display',serif;vertical-align:middle;
+  }
   .del-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;padding:5px 8px;border-radius:7px;transition:.15s;}
   .del-btn:hover{color:var(--danger);background:rgba(176,106,106,.12);}
   .edit-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:5px 8px;border-radius:7px;transition:.15s;}
-  .edit-btn:hover{color:var(--gold);background:rgba(203,168,105,.12);}
+  .edit-btn:hover{color:var(--gold);background:rgba(var(--gold-rgb),.12);}
   .toggle-active-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:5px 8px;border-radius:7px;transition:.15s;display:inline-flex;align-items:center;justify-content:center;}
   .toggle-active-btn:hover{color:var(--teal);background:rgba(111,168,154,.12);}
   .empty-row{color:var(--muted);text-align:center;padding:22px 0;font-size:13px;}
@@ -281,7 +302,7 @@
     padding:11px 8px;border-radius:9px;cursor:pointer;font-size:13px;text-align:center;transition:.15s;
   }
   .choice-btn:hover:not(.selected){background:#1d1d24;border-color:var(--gold-soft);color:var(--ivory);}
-  .choice-btn.selected{border-color:var(--gold);color:var(--gold);background:rgba(203,168,105,.08);}
+  .choice-btn.selected{border-color:var(--gold);color:var(--gold);background:rgba(var(--gold-rgb),.08);}
   .submit-btn{
     width:100%;padding:13px;border-radius:9px;border:none;margin-top:6px;
     background:linear-gradient(90deg,var(--gold-soft),var(--gold));
@@ -297,9 +318,9 @@
     background:none;border:1px solid var(--line);color:var(--muted);
     font-family:'Inter',sans-serif;font-size:13px;transition:.15s;
   }
-  .btn-outline:hover{border-color:var(--gold-soft);color:var(--gold);background:rgba(203,168,105,.08);}
+  .btn-outline:hover{border-color:var(--gold-soft);color:var(--gold);background:rgba(var(--gold-rgb),.08);}
   .btn-add-large{padding:13px 22px;font-size:15px;font-family:'Playfair Display',serif;border-color:var(--gold-soft);color:var(--gold);}
-  .btn-add-large:hover{background:rgba(203,168,105,.12);}
+  .btn-add-large:hover{background:rgba(var(--gold-rgb),.12);}
   .form-msg{text-align:center;font-size:12px;margin-top:10px;min-height:16px;}
   .form-msg.ok{color:var(--teal);}
   .form-msg.err{color:var(--danger);}
@@ -327,6 +348,7 @@
   .login-msg{font-size:12px;color:var(--danger);min-height:16px;margin-top:10px;}
 
   @media (max-width:900px){
+    .club-dashboard-grid{grid-template-columns:1fr !important;}
     .app-shell{flex-direction:column;}
     .sidebar{
       position:relative; width:100%; height:auto; flex-direction:row;

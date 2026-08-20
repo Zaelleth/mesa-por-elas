@@ -3,8 +3,6 @@
 // qualquer ambiguidade sobre live-binding entre arquivos — todo módulo que
 // importar `state` enxerga e altera exatamente o mesmo objeto.
 
-import { todayStr } from './utils.js';
-
 export const state = {
   // Sessão / autenticação
   sessionToken: null,
@@ -15,7 +13,7 @@ export const state = {
   // Dados do módulo Eventos
   sales: [],
   goalValue: 5000,
-  currentFilterDate: todayStr(), // por padrão, o dashboard abre mostrando o dia atual
+  currentFilterDate: null, // por padrão, o dashboard abre mostrando "Tudo"
   autoRefreshTimer: null,
   vendasSort: { field: 'data', dir: 'desc' }, // tela "Vendas": campo e direção de ordenação
 
@@ -27,6 +25,7 @@ export const state = {
   selectedPayment: null,
   selectedSeller: null,
   selectedCardType: null,
+  selectedItemId: null,
   editingId: null,
 
   // Tela de Usuários (admin)
@@ -38,5 +37,15 @@ export const state = {
   customers: [],
   editingCustomerId: null,
   customersSort: { field: 'name', dir: 'asc' },
-  customersClubOnly: false
+  customersClubOnly: false,
+
+  // Tela de Itens de Venda (admin/gestor)
+  saleItems: [],
+  editingSaleItemId: null,
+
+  // Club — assinaturas, pagamentos e calendário de encontros
+  clubSubscriptions: [],
+  clubPayments: [],
+  clubEvents: [],
+  editingClubEventId: null
 };

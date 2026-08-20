@@ -131,6 +131,20 @@ function addCustomer(customer) {
 }
 
 /** Edição manual pela tela de Clientes. Não existe exclusão — só edição. */
+/**
+ * Atualiza só a coluna "club" de um cliente — chamado por
+ * ClubSubscriptions.js sempre que uma assinatura é criada, reativada ou
+ * cancelada, pra manter esse selo em Clientes sincronizado com a fonte de
+ * verdade de verdade (club_subscriptions), em vez de exigir edição manual.
+ */
+function setCustomerClubFlag(customerId, value) {
+  const sheet = getCustomersSheet();
+  const row = findCustomerRowById(sheet, customerId);
+  if (row === -1) return;
+  sheet.getRange(row, 6).setValue(!!value); // coluna F = club
+  SpreadsheetApp.flush();
+}
+
 function updateCustomer(id, customer) {
   if (!customer || !customer.name || !customer.phone || !customer.cpf) {
     return { ok: false, error: 'Preencha nome, telefone e CPF.' };

@@ -53,7 +53,7 @@ function canToggleActive(target){
 }
 
 // ---------- Comunicação com o backend ----------
-async function fetchUsers(){
+export async function fetchUsers(){
   try{
     const res = await apiGet('getUsers');
     state.users = (res && res.ok && res.users) ? res.users : [];

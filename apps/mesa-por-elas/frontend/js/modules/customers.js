@@ -127,7 +127,7 @@ function openCustomerDetail(customer){
             <div class="sale-row-main">
               <div class="sale-row-name">${dateStr}</div>
               <div class="sale-row-meta">
-                ${s.sellerName} &middot; <span class="pill ${paymentPillClass(s)}">${paymentLabel(s)}</span>
+                ${s.itemName} &middot; ${s.sellerName} &middot; <span class="pill ${paymentPillClass(s)}">${paymentLabel(s)}</span>
               </div>
             </div>
             <div class="sale-row-amount">R$ ${fmtBRL(s.amount)}</div>
