@@ -111,7 +111,7 @@ export function renderClubAssinantes(){
       <div class="sale-row-main">
         <div class="sale-row-name">${s.customerName} <span class="pill club">★ Club</span></div>
         <div class="sale-row-meta">
-          Assinante há ${formatClubTenure(s.startedAt)} &middot; R$ ${fmtBRL(s.monthlyPrice)}/mês
+          Assinante há ${formatClubTenure(s.startedAt)} &middot; R$ ${fmtBRL(s.monthlyPrice)}/mês &middot; Vence dia ${s.billingDay}
         </div>
       </div>
       ${canManage ? `<div class="sale-row-actions"><button class="del-btn" data-id="${s.id}" title="Cancelar assinatura">✕</button></div>` : ''}

@@ -107,9 +107,17 @@ function readClubPayments() {
 function recordSubscriptionSalePayment(subscriptionId, amount, saleTimestamp) {
   const sheet = getClubPaymentsSheet();
   const billingPeriod = firstDayOfMonth(saleTimestamp);
-  const existingRow = findClubPaymentRow(sheet, subscriptionId, billingPeriod);
 
+  // Busca o dia de vencimento configurado na assinatura, pra calcular o
+  // due_date de verdade (em vez de sempre cair no dia 1 do mês).
+  const subsSheet = getClubSubscriptionsSheet();
+  const subRow = findClubSubscriptionRowById(subsSheet, subscriptionId);
+  const billingDay = subRow !== -1 ? ((Number(subsSheet.getRange(subRow, 8).getValue()) >= 1 && Number(subsSheet.getRange(subRow, 8).getValue()) <= 28) ? Number(subsSheet.getRange(subRow, 8).getValue()) : 1) : 1;
+  const dueDate = new Date(billingPeriod.getFullYear(), billingPeriod.getMonth(), billingDay);
+
+  const existingRow = findClubPaymentRow(sheet, subscriptionId, billingPeriod);
   if (existingRow !== -1) {
+    sheet.getRange(existingRow, 4).setValue(dueDate.toISOString()); // due_date
     sheet.getRange(existingRow, 5, 1, 3).setValues([[ saleTimestamp, Number(amount), 'pago' ]]); // paid_date, amount, status
     SpreadsheetApp.flush();
     return;
@@ -117,7 +125,7 @@ function recordSubscriptionSalePayment(subscriptionId, amount, saleTimestamp) {
 
   const id = getNextClubPaymentId(sheet);
   sheet.appendRow([
-    id, subscriptionId, billingPeriod.toISOString(), billingPeriod.toISOString(),
+    id, subscriptionId, billingPeriod.toISOString(), dueDate.toISOString(),
     saleTimestamp, Number(amount), 'pago'
   ]);
   SpreadsheetApp.flush();
@@ -148,13 +156,15 @@ function generateUpcomingClubPayments(monthsAhead) {
     const subscriptionId = r[0];
     const status = r[2];
     const monthlyPrice = Number(r[3]);
+    const billingDay = (Number(r[7]) >= 1 && Number(r[7]) <= 28) ? Number(r[7]) : 1;
     if (status !== 'ativa') return;
 
     for (let i = 0; i <= monthsAhead; i++) {
       const period = new Date(today.getFullYear(), today.getMonth() + i, 1);
       if (findClubPaymentRow(paymentsSheet, subscriptionId, period) !== -1) continue;
+      const dueDate = new Date(period.getFullYear(), period.getMonth(), billingDay);
       const id = getNextClubPaymentId(paymentsSheet);
-      paymentsSheet.appendRow([id, subscriptionId, period.toISOString(), period.toISOString(), '', monthlyPrice, 'pendente']);
+      paymentsSheet.appendRow([id, subscriptionId, period.toISOString(), dueDate.toISOString(), '', monthlyPrice, 'pendente']);
       generated++;
     }
   });

@@ -145,7 +145,8 @@ function addSale(sale) {
   // mês da venda como pago — é a venda em si que representa a confirmação
   // do pagamento fora do sistema.
   if (isClubSubscriptionItemName(itemInfo.name)) {
-    const subResult = upsertClubSubscription(customerResult.customerId, Number(sale.amount), sale.payment, timestamp);
+    Logger.log('addSale: item de assinatura detectado. sale.billingDay recebido do frontend = ' + JSON.stringify(sale.billingDay) + ' (tipo: ' + typeof sale.billingDay + ')');
+    const subResult = upsertClubSubscription(customerResult.customerId, Number(sale.amount), sale.payment, timestamp, sale.billingDay || null);
     recordSubscriptionSalePayment(subResult.id, Number(sale.amount), timestamp);
   }
 

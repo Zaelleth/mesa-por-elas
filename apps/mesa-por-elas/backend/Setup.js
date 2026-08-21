@@ -546,3 +546,41 @@ function generateUpcomingClubPaymentsTriggered() {
   const result = generateUpcomingClubPayments(3);
   Logger.log('Gatilho mensal rodou: ' + result.generated + ' cobrança(s) nova(s) gerada(s).');
 }
+
+/**
+ * Rode esta função UMA VEZ se sua aba "club_subscriptions" ainda não tiver
+ * a coluna "billing_day" (dia do mês em que a assinatura vence). Adiciona
+ * a coluna, preenchendo — pras assinaturas já existentes — com o dia do
+ * mês de started_at como valor padrão (mesma lógica usada pra assinaturas
+ * novas sem escolha explícita). Segura de rodar mais de uma vez.
+ */
+function migrateAddBillingDayColumn() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_CLUB_SUBSCRIPTIONS);
+  if (!sheet) {
+    Logger.log('Aba "club_subscriptions" não encontrada — rode migrateAddClubTables() primeiro.');
+    return;
+  }
+  const headers = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 8)).getValues()[0];
+  if (headers[7] === 'billing_day') {
+    Logger.log('A coluna "billing_day" já existe — nada a fazer.');
+    return;
+  }
+
+  sheet.getRange(1, 8).setValue('billing_day');
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow >= 2) {
+    const numRows = lastRow - 1;
+    const startedAtValues = sheet.getRange(2, 6, numRows, 1).getValues();
+    const billingDays = startedAtValues.map(function (r) {
+      const d = r[0] instanceof Date ? r[0] : new Date(r[0]);
+      const day = isNaN(d.getDate()) ? 1 : Math.min(d.getDate(), 28);
+      return [day];
+    });
+    sheet.getRange(2, 8, numRows, 1).setValues(billingDays);
+  }
+
+  SpreadsheetApp.flush();
+  Logger.log('Coluna "billing_day" adicionada à aba club_subscriptions.');
+}

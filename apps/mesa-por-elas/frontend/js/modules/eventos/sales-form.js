@@ -11,7 +11,7 @@ import { addSaleAPI, updateSaleAPI } from './sales-data.js';
 import { populateSellerGroup } from '../../auth.js';
 import { confirmModal } from '../../modal.js';
 import { fetchCustomers } from '../customers.js';
-import { populateItemSelect, getSelectedItemPrice } from '../saleitems.js';
+import { populateItemSelect, getSelectedItemPrice, applyBillingDayVisibility } from '../saleitems.js';
 
 function toggleSplitPaymentBlocks(isSplit){
   document.getElementById('singlePaymentBlock').style.display = isSplit ? 'none' : '';
@@ -91,12 +91,13 @@ export function startEdit(id){
 }
 
 export function resetForm(){
-  ['fName','fPhone','fCpf','fEmail','fAmount','fPixAmount','fCardAmount'].forEach(id=>{
+  ['fName','fPhone','fCpf','fEmail','fAmount','fPixAmount','fCardAmount','fBillingDay'].forEach(id=>{
     document.getElementById(id).value='';
     document.getElementById(id).classList.remove('invalid');
   });
   clearFieldError('fCpf');
   clearFieldError('fEmail');
+  clearFieldError('fBillingDay');
   document.querySelectorAll('.choice-btn').forEach(b=>b.classList.remove('selected'));
   document.getElementById('fSplitPayment').checked = false;
   toggleSplitPaymentBlocks(false);
@@ -107,8 +108,9 @@ export function resetForm(){
   document.getElementById('submitBtn').textContent = 'Registrar venda';
   document.getElementById('cancelEditBtn').style.display = 'none';
   populateSellerGroup();
+  state.selectedItemId = null; // força o formulário a voltar sem item selecionado
   populateItemSelect();
-  if(!document.getElementById('fSplitPayment').checked){
+  if(!document.getElementById('fSplitPayment').checked && state.selectedItemId){
     document.getElementById('fAmount').value = getSelectedItemPrice();
   }
 }
@@ -135,10 +137,11 @@ export function initSalesFormListeners(){
   // sugerido dele — mas só no modo de pagamento único; no modo dividido,
   // quem decide como o valor se reparte é a pessoa, não o item.
   document.getElementById('itemSelect').addEventListener('change', e=>{
-    state.selectedItemId = e.target.value;
-    if(!document.getElementById('fSplitPayment').checked){
+    state.selectedItemId = e.target.value || null;
+    if(!document.getElementById('fSplitPayment').checked && state.selectedItemId){
       document.getElementById('fAmount').value = getSelectedItemPrice();
     }
+    applyBillingDayVisibility(state.selectedItemId);
   });
 
   // Autopreenchimento: ao terminar de digitar o nome completo (perder o
@@ -188,6 +191,12 @@ export function initSalesFormListeners(){
     if(v.length > 0 && !isValidCPF(v)) setFieldError('fCpf', 'CPF inválido. Confira os números digitados.');
     else clearFieldError('fCpf');
   });
+  document.getElementById('fBillingDay').addEventListener('blur', e=>{
+    const v = e.target.value.trim();
+    const n = Number(v);
+    if(v.length > 0 && (isNaN(n) || n < 1 || n > 28)) setFieldError('fBillingDay', 'Informe um dia entre 1 e 28.');
+    else clearFieldError('fBillingDay');
+  });
 
   document.getElementById('fSplitPayment').addEventListener('change', e=>{
     toggleSplitPaymentBlocks(e.target.checked);
@@ -203,6 +212,18 @@ export function initSalesFormListeners(){
   });
 
   document.getElementById('submitBtn').addEventListener('click', async ()=>{
+    const submitBtn = document.getElementById('submitBtn');
+    // Trava o botão IMEDIATAMENTE, antes de qualquer validação assíncrona.
+    // Antes, o botão só era desabilitado depois de toda a validação —
+    // incluindo o pop-up de confirmação de dados divergentes, que pode
+    // ficar esperando segundos por uma resposta da pessoa. Nesse intervalo,
+    // um clique duplo (ou um segundo clique enquanto o pop-up está aberto)
+    // disparava duas execuções em paralelo, cada uma podendo registrar uma
+    // venda — travando aqui, isso não é mais possível.
+    if(submitBtn.disabled) return;
+    submitBtn.disabled = true;
+    const originalLabel = state.editingId ? 'Salvar alterações' : 'Registrar venda';
+
     // Importado aqui dentro (não no topo do arquivo) para não criar um
     // segundo ciclo de import — dashboard.js já importa este arquivo.
     const { renderDashboard, renderRecent } = await import('./dashboard.js');
@@ -214,33 +235,36 @@ export function initSalesFormListeners(){
     const msg = document.getElementById('formMsg');
     const isSplit = document.getElementById('fSplitPayment').checked;
 
+    function fail(message){
+      msg.textContent = message;
+      msg.className = 'form-msg err';
+      submitBtn.disabled = false;
+      submitBtn.textContent = originalLabel;
+    }
+
     clearFieldError('fCpf');
     clearFieldError('fEmail');
 
     if(!name || !phone || !cpf || !state.selectedSeller || !state.selectedItemId){
-      msg.textContent = 'Preencha nome completo, telefone, CPF, o item vendido e a vendedora.';
-      msg.className = 'form-msg err';
+      fail('Preencha nome completo, telefone, CPF, o item vendido e a vendedora.');
       return;
     }
 
     if(!isValidCPF(cpf)){
       setFieldError('fCpf', 'CPF inválido. Confira os números digitados.');
-      msg.textContent = 'CPF inválido. Confira os números digitados.';
-      msg.className = 'form-msg err';
+      fail('CPF inválido. Confira os números digitados.');
       return;
     }
 
     if(email && !isValidEmail(email)){
       setFieldError('fEmail', 'E-mail inválido. Confira o endereço digitado.');
-      msg.textContent = 'E-mail inválido. Confira o endereço digitado.';
-      msg.className = 'form-msg err';
+      fail('E-mail inválido. Confira o endereço digitado.');
       return;
     }
 
     const identityConflict = findCustomerByCpf(cpf);
     if(identityConflict && identityConflict.name.trim().toLowerCase() !== name.trim().toLowerCase()){
-      msg.textContent = 'Esse CPF já está cadastrado no nome de outra pessoa.';
-      msg.className = 'form-msg err';
+      fail('Esse CPF já está cadastrado no nome de outra pessoa.');
       return;
     }
 
@@ -263,8 +287,7 @@ export function initSalesFormListeners(){
           cancelLabel: 'Cancelar'
         });
         if(!confirmed){
-          msg.textContent = 'Registro cancelado — os dados do cliente não foram alterados.';
-          msg.className = 'form-msg err';
+          fail('Registro cancelado — os dados do cliente não foram alterados.');
           return;
         }
       }
@@ -277,8 +300,7 @@ export function initSalesFormListeners(){
       cardAmount = parseFloat(document.getElementById('fCardAmount').value) || 0;
       amount = pixAmount + cardAmount;
       if(pixAmount <= 0 || cardAmount <= 0 || !state.selectedCardType){
-        msg.textContent = 'Para pagamento dividido, informe os dois valores (maiores que zero) e o tipo do cartão.';
-        msg.className = 'form-msg err';
+        fail('Para pagamento dividido, informe os dois valores (maiores que zero) e o tipo do cartão.');
         return;
       }
       payment = 'misto';
@@ -286,8 +308,7 @@ export function initSalesFormListeners(){
     } else {
       amount = parseFloat(document.getElementById('fAmount').value);
       if(!amount || amount<=0 || !state.selectedPayment){
-        msg.textContent = 'Preencha o valor e a forma de pagamento.';
-        msg.className = 'form-msg err';
+        fail('Preencha o valor e a forma de pagamento.');
         return;
       }
       payment = state.selectedPayment;
@@ -296,11 +317,21 @@ export function initSalesFormListeners(){
       cardAmount = payment === 'pix' ? 0 : amount;
     }
 
-    const submitBtn = document.getElementById('submitBtn');
-    submitBtn.disabled = true;
+    const billingDayRaw = document.getElementById('fBillingDay').value.trim();
+    let billingDay = null;
+    if(document.getElementById('billingDayFieldWrap').style.display !== 'none' && billingDayRaw){
+      const n = Number(billingDayRaw);
+      if(isNaN(n) || n < 1 || n > 28){
+        setFieldError('fBillingDay', 'Informe um dia entre 1 e 28.');
+        fail('Dia de vencimento inválido. Use um número entre 1 e 28.');
+        return;
+      }
+      billingDay = n;
+    }
+
     submitBtn.textContent = 'Salvando…';
 
-    const saleFields = { name, phone, cpf, email, amount, payment, cardType, pixAmount, cardAmount, seller: state.selectedSeller, itemId: state.selectedItemId };
+    const saleFields = { name, phone, cpf, email, amount, payment, cardType, pixAmount, cardAmount, seller: state.selectedSeller, itemId: state.selectedItemId, billingDay };
 
     if(state.editingId){
       try{
@@ -309,10 +340,7 @@ export function initSalesFormListeners(){
         if(idx !== -1) state.sales[idx] = { ...state.sales[idx], ...saleFields, sellerName: res.sellerName, itemName: res.itemName };
         await fetchCustomers(); // reflete telefone/e-mail que o backend possa ter atualizado
       }catch(err){
-        msg.textContent = 'Não foi possível salvar. Verifique sua conexão e tente novamente.';
-        msg.className = 'form-msg err';
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Salvar alterações';
+        fail('Não foi possível salvar. Verifique sua conexão e tente novamente.');
         return;
       }
       msg.textContent = 'Alterações salvas com sucesso!';
@@ -330,10 +358,7 @@ export function initSalesFormListeners(){
       state.sales.push(savedSale);
       await fetchCustomers(); // pega o cliente novo (ou telefone/e-mail atualizado) para a sessão atual
     }catch(err){
-      msg.textContent = 'Não foi possível registrar. Verifique sua conexão e tente novamente.';
-      msg.className = 'form-msg err';
-      submitBtn.disabled = false;
-      submitBtn.textContent = 'Registrar venda';
+      fail('Não foi possível registrar. Verifique sua conexão e tente novamente.');
       return;
     }
 

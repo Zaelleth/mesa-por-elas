@@ -43,15 +43,48 @@ async function setSaleItemActiveAPI(id, active){
  * item atualmente selecionado, mesmo que já tenha sido inativado depois
  * (garante que editar uma venda antiga continue funcionando).
  */
+// Precisa bater com CLUB_SUBSCRIPTION_ITEM_NAMES em ClubSubscriptions.js
+// (backend) — é assim que o sistema reconhece "este item é a assinatura".
+const CLUB_SUBSCRIPTION_ITEM_NAME = 'Assinatura Club';
+
+/**
+ * Mostra/esconde o campo "Dia de vencimento" (usado só quando o item
+ * selecionado é a assinatura do Club). Centralizado aqui — chamado sempre
+ * que a seleção de item muda, seja por escolha manual (evento 'change') ou
+ * programaticamente (populateItemSelect, abaixo) — assim esse campo nunca
+ * mais fica com a visibilidade desincronizada da seleção de verdade.
+ */
+export function applyBillingDayVisibility(itemId){
+  const wrap = document.getElementById('billingDayFieldWrap');
+  if(!wrap) return;
+  const item = state.saleItems.find(i=>i.id === itemId);
+  const isSubscription = !!(item && item.name && item.name.toLowerCase() === CLUB_SUBSCRIPTION_ITEM_NAME.toLowerCase());
+  wrap.style.display = isSubscription ? '' : 'none';
+  if(!isSubscription){
+    const input = document.getElementById('fBillingDay');
+    if(input){ input.value = ''; input.classList.remove('invalid'); }
+    const errorEl = document.getElementById('fBillingDayError');
+    if(errorEl) errorEl.textContent = '';
+  }
+}
+
 export function populateItemSelect(preselectId){
   const select = document.getElementById('itemSelect');
   if(!select) return;
-  select.innerHTML = '';
 
+  // Se não veio um preselectId explícito (edição de venda), preserva a
+  // seleção que a pessoa já tinha feito, contanto que ainda seja válida —
+  // isso é o que evita que a atualização silenciosa em segundo plano (a
+  // cada 15s) resete o que já estava escolhido no meio do preenchimento.
+  // Só quando NÃO existe nenhuma seleção prévia (formulário realmente
+  // "zerado") é que o campo nasce vazio, forçando uma escolha ativa.
+  const keepId = preselectId || (state.selectedItemId && state.saleItems.some(i=>i.id===state.selectedItemId) ? state.selectedItemId : null);
+
+  select.innerHTML = '';
   let items = state.saleItems.filter(i=>i.active);
-  if(preselectId && !items.some(i=>i.id===preselectId)){
-    const preselectItem = state.saleItems.find(i=>i.id===preselectId);
-    if(preselectItem) items = [...items, preselectItem];
+  if(keepId && !items.some(i=>i.id===keepId)){
+    const keepItem = state.saleItems.find(i=>i.id===keepId);
+    if(keepItem) items = [...items, keepItem];
   }
   items.sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
 
@@ -61,7 +94,15 @@ export function populateItemSelect(preselectId){
     opt.textContent = 'Nenhum item cadastrado';
     select.appendChild(opt);
     state.selectedItemId = null;
+    applyBillingDayVisibility(null);
     return;
+  }
+
+  if(!keepId){
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = 'Selecione um item...';
+    select.appendChild(placeholder);
   }
 
   items.forEach(item=>{
@@ -71,9 +112,9 @@ export function populateItemSelect(preselectId){
     select.appendChild(opt);
   });
 
-  const value = preselectId || (items.some(i=>i.id===state.selectedItemId) ? state.selectedItemId : items[0].id);
-  select.value = value;
-  state.selectedItemId = value;
+  select.value = keepId || '';
+  state.selectedItemId = keepId || null;
+  applyBillingDayVisibility(state.selectedItemId);
 }
 
 /** Preço sugerido do item selecionado no momento — usado para pré-preencher o valor da venda. */

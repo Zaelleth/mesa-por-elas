@@ -1,6 +1,6 @@
 /**
  * ClubSubscriptions.js — CRUD da aba "club_subscriptions".
- * Schema: subscription_id | customer_id | status | monthly_price | payment_method | started_at | canceled_at
+ * Schema: subscription_id | customer_id | status | monthly_price | payment_method | started_at | canceled_at | billing_day
  *
  * Regras de negócio (decididas explicitamente com o usuário):
  *   - Uma assinatura é ÚNICA por customer_id — nunca existem duas linhas
@@ -8,6 +8,13 @@
  *     linha; qualquer venda seguinte reativa a mesma linha (nunca cria outra).
  *   - Assinaturas NUNCA são excluídas — cancelar só muda o status.
  *   - Reativar preserva started_at original (o "tempo de casa" não reseta).
+ *
+ * billing_day é o DIA DO MÊS (1 a 28) em que a cobrança vence todo mês —
+ * limitado a 28 de propósito, pra nunca cair num dia que não existe em
+ * algum mês (ex: dia 31 em fevereiro). Escolhido no formulário de venda
+ * (opcional); se não informado, usa o dia da própria venda como padrão. É
+ * isso que resolve o due_date de club_payments, que antes ficava sempre
+ * fixo no dia 1 do mês, sem opção de personalizar.
  *
  * Identificação de qual item vendido é "a assinatura": não existe uma
  * coluna nova em saleitems pra isso, de propósito (decisão do usuário) — o
@@ -18,7 +25,7 @@
  */
 
 const SHEET_CLUB_SUBSCRIPTIONS = 'club_subscriptions';
-const CLUB_SUBSCRIPTIONS_HEADERS = ['subscription_id', 'customer_id', 'status', 'monthly_price', 'payment_method', 'started_at', 'canceled_at'];
+const CLUB_SUBSCRIPTIONS_HEADERS = ['subscription_id', 'customer_id', 'status', 'monthly_price', 'payment_method', 'started_at', 'canceled_at', 'billing_day'];
 
 const CLUB_SUBSCRIPTION_ITEM_NAMES = ['Assinatura Club'];
 
@@ -87,7 +94,8 @@ function readClubSubscriptions() {
         monthlyPrice: Number(r[3]),
         paymentMethod: r[4],
         startedAt: r[5] instanceof Date ? r[5].toISOString() : r[5],
-        canceledAt: r[6] ? (r[6] instanceof Date ? r[6].toISOString() : r[6]) : null
+        canceledAt: r[6] ? (r[6] instanceof Date ? r[6].toISOString() : r[6]) : null,
+        billingDay: (Number(r[7]) >= 1 && Number(r[7]) <= 28) ? Number(r[7]) : 1
       };
     });
 }
@@ -98,13 +106,20 @@ function readClubSubscriptions() {
  * linha para o mesmo customer_id. Chamada por Sales.js logo depois de uma
  * venda do item de assinatura.
  */
-function upsertClubSubscription(customerId, monthlyPrice, paymentMethod, saleTimestamp) {
+function upsertClubSubscription(customerId, monthlyPrice, paymentMethod, saleTimestamp, billingDay) {
+  Logger.log('upsertClubSubscription recebeu: customerId=' + customerId + ' billingDay=' + billingDay + ' (tipo: ' + typeof billingDay + ')');
   const sheet = getClubSubscriptionsSheet();
   const row = findClubSubscriptionRowByCustomerId(sheet, customerId);
 
+  const validBillingDay = (billingDay && billingDay >= 1 && billingDay <= 28) ? billingDay : null;
+
   if (row === -1) {
+    // Assinatura nova: sem escolha explícita, usa o dia do mês da própria
+    // venda como vencimento — nunca fica em branco.
+    const resolvedBillingDay = validBillingDay || new Date(saleTimestamp).getDate();
+    Logger.log('Assinatura NOVA — resolvedBillingDay=' + resolvedBillingDay + ' (validBillingDay=' + validBillingDay + ')');
     const id = getNextClubSubscriptionId(sheet);
-    sheet.appendRow([id, customerId, 'ativa', Number(monthlyPrice), paymentMethod, saleTimestamp, '']);
+    sheet.appendRow([id, customerId, 'ativa', Number(monthlyPrice), paymentMethod, saleTimestamp, '', resolvedBillingDay]);
     SpreadsheetApp.flush();
     setCustomerClubFlag(customerId, true);
     return { id: id, isNew: true, startedAt: saleTimestamp };
@@ -112,9 +127,21 @@ function upsertClubSubscription(customerId, monthlyPrice, paymentMethod, saleTim
 
   // Reativação: preserva started_at original (regra explícita do usuário —
   // cancelar e voltar não reseta o "tempo de casa" da cliente).
+  //
+  // Prioridade pro dia de vencimento, nessa ordem: (1) um novo dia
+  // explicitamente escolhido agora; (2) o que já estava configurado antes,
+  // SE for um valor válido; (3) o dia da venda atual, como último recurso —
+  // isso é o que garante que a coluna nunca fica em branco, mesmo que a
+  // linha já existisse de antes dessa funcionalidade ter sido criada (e
+  // por isso já estivesse com essa célula vazia).
   const startedAt = sheet.getRange(row, 6).getValue();
+  const currentBillingDayRaw = Number(sheet.getRange(row, 8).getValue());
+  const currentBillingDayValid = (currentBillingDayRaw >= 1 && currentBillingDayRaw <= 28) ? currentBillingDayRaw : null;
+  const finalBillingDay = validBillingDay || currentBillingDayValid || new Date(saleTimestamp).getDate();
+
   sheet.getRange(row, 3, 1, 3).setValues([[ 'ativa', Number(monthlyPrice), paymentMethod ]]); // status, monthly_price, payment_method
   sheet.getRange(row, 7).setValue(''); // limpa canceled_at ao reativar
+  sheet.getRange(row, 8).setValue(finalBillingDay);
   SpreadsheetApp.flush();
   setCustomerClubFlag(customerId, true);
   const id = sheet.getRange(row, 1).getValue();
